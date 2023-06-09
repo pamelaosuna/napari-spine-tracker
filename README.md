@@ -7,7 +7,7 @@
 [![codecov](https://codecov.io/gh/pamelaosuna/napari-spine-tracker/branch/main/graph/badge.svg)](https://codecov.io/gh/pamelaosuna/napari-spine-tracker)
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-spine-tracker)](https://napari-hub.org/plugins/napari-spine-tracker)
 
-i] NaNapari plugin to correct spine tracking results
+Napari plugin to correct spine tracking results.
 
 ----------------------------------
 

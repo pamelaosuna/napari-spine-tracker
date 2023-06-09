@@ -17,6 +17,9 @@ contributions:
     - id: napari-spine-tracker.make_qwidget
       python_name: napari_spine_tracker._widget:ExampleQWidget
       title: Make example QWidget
+    - id: napari-spine-tracker.make_spine_widget
+      python_name: napari_spine_tracker._widget:TrackingCorrectionWidget
+      title: Make tracking correction widget
     - id: napari-spine-tracker.make_magic_widget
       python_name: napari_spine_tracker._widget:example_magic_widget
       title: Make example magic widget
@@ -46,3 +49,5 @@ contributions:
     - command: napari-spine-tracker.make_func_widget
       autogenerate: true
       display_name: Example Function Widget
+    - command: napari-spine-tracker.make_spine_widget
+      display_name: Tracking Correction Widget
