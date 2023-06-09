@@ -10,9 +10,12 @@ from typing import TYPE_CHECKING
 
 from magicgui import magic_factory
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget, QVBoxLayout
+from qtpy.QtWidgets import QSplitter
 
 if TYPE_CHECKING:
     import napari
+
+# from napari.components import ViewerModel
 
 from napari_spine_tracker.tabs import *
 import os
@@ -50,6 +53,8 @@ class TrackingCorrectionWidget(QWidget):
         super().__init__()
         self.viewer = napari_viewer
 
+        # self.viewer.window.add_dock_widget(self, area="right")
+
         self.set_default_dirs()
         self.loaded = False
 
@@ -58,19 +63,30 @@ class TrackingCorrectionWidget(QWidget):
     def create_initial_widgets(self):
         btn_new_project = QPushButton("New Project")
         btn_open_project = QPushButton("Open Project")
-        btn_save_project = QPushButton("Save Project")
+        # btn_save_project = QPushButton("Save Project")
         btn_help = QPushButton("Help")
 
         btn_open_project.clicked.connect(self._open_project)
-        btn_save_project.clicked.connect(self._save_project)
+        # btn_save_project.clicked.connect(self._save_project)
         btn_help.clicked.connect(self._help)
         btn_new_project.clicked.connect(self._new_project)
 
-        self.setLayout(QVBoxLayout())
-        self.layout().addWidget(btn_new_project)
-        self.layout().addWidget(btn_open_project)
-        self.layout().addWidget(btn_save_project)
-        self.layout().addWidget(btn_help)
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(btn_new_project)
+        self.layout.addWidget(btn_open_project)
+        # self.layout.addWidget(btn_save_project)
+        self.layout.addWidget(btn_help)
+
+        # self.viewer_model1 = ViewerModel(title="Viewer 1")
+        # self.viewer_model2 = ViewerModel(title="Viewer 2")
+        
+        # self.viewer1 = self.viewer_model1.window
+        
+        # viewer_splitter = QSplitter()
+        # viewer_splitter.addWidget(self.viewer1)
+        # viewer_splitter.addWidget(self.viewer2)
+        # self.layout.addWidget(viewer_splitter)
+        self.setLayout(self.layout)
 
     def _open_project(self):
         print("Open Project")
@@ -91,13 +107,13 @@ class TrackingCorrectionWidget(QWidget):
 
     def set_default_dirs(self):
         self.csv_dir_default = os.path.join(os.getcwd(), "..", "eval_ttrack")
-        self.ims_dir_default = os.path.join(os.getcwd(), "..", "benzo_pipeline", "A2_registered", "8bit", "subs")
+        self.img_dir_default = os.path.join(os.getcwd(), "..", "benzo_pipeline", "A2_registered", "8bit", "subs")
     
-    def _update_project_state(self, loaded, filepath, ims_dir):
+    def _update_project_state(self, loaded, filepath, img_dir):
         print("Updating project state")
         self.loaded = loaded
         self.filepath = filepath
-        self.ims_dir = ims_dir
+        self.img_dir = img_dir
         self.csv_dir = os.path.dirname(self.filepath)
         self.filename = os.path.basename(self.filepath)
 
@@ -106,4 +122,13 @@ class TrackingCorrectionWidget(QWidget):
     
     def create_correction_widgets(self):
         print("Creating correction widgets")
-        
+        # remove btn_new_project, btn_open_project, btn_help
+        for i in range(3):
+            self.layout.removeWidget(self.layout.itemAt(0).widget())
+
+        self.refine_timetracking = RefineTimeTracking(self)
+
+
+
+
+

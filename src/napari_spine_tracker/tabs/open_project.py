@@ -9,7 +9,7 @@ class OpenProject(QtWidgets.QDialog):
 
         self.filename = ""
         self.filepath = ""
-        self.ims_dir = self.parent.ims_dir_default
+        self.img_dir = self.parent.img_dir_default
         self.csv_dir = self.parent.csv_dir_default
 
         self.loaded = False
@@ -24,9 +24,9 @@ class OpenProject(QtWidgets.QDialog):
         self.browse_file_btn = QtWidgets.QPushButton("Select project file", self)
         self.browse_file_btn.clicked.connect(self.browse_file)
 
-        self.ims_dir_label = QtWidgets.QLabel(f"Images folder selected: {self.ims_dir}", self)
-        self.browse_ims_dir_btn = QtWidgets.QPushButton("Select images folder", self)
-        self.browse_ims_dir_btn.clicked.connect(self.browse_ims_dir)
+        self.img_dir_label = QtWidgets.QLabel(f"Images folder selected: {self.img_dir}", self)
+        self.browse_img_dir_btn = QtWidgets.QPushButton("Select images folder", self)
+        self.browse_img_dir_btn.clicked.connect(self.browse_img_dir)
 
         self.ok_btn = QtWidgets.QPushButton("Load")
         self.ok_btn.setDefault(True)
@@ -34,8 +34,8 @@ class OpenProject(QtWidgets.QDialog):
 
         main_layout.addWidget(self.filepath_label)
         main_layout.addWidget(self.browse_file_btn)
-        main_layout.addWidget(self.ims_dir_label)
-        main_layout.addWidget(self.browse_ims_dir_btn)
+        main_layout.addWidget(self.img_dir_label)
+        main_layout.addWidget(self.browse_img_dir_btn)
         main_layout.addWidget(self.ok_btn, alignment=QtCore.Qt.AlignRight)
         main_layout.addStretch()
         
@@ -56,18 +56,18 @@ class OpenProject(QtWidgets.QDialog):
 
         self.filepath_label.setText(f"File selected: {self.filename}")
     
-    def browse_ims_dir(self):
+    def browse_img_dir(self):
         f = QtWidgets.QFileDialog.getExistingDirectory(
                                     self,
                                     "Select images folder",
-                                    self.ims_dir,
+                                    self.img_dir,
                                     options=QtWidgets.QFileDialog.DontUseNativeDialog
                                     )
         if not f:
             return
-        self.ims_dir = f
+        self.img_dir = f
         print(f"You have selected {f}")
-        self.ims_dir_label.setText(f"Images folder selected: {self.ims_dir}")
+        self.img_dir_label.setText(f"Images folder selected: {self.img_dir}")
     
     def finalize_open(self):
         print("Finalizing open")
@@ -79,7 +79,7 @@ class OpenProject(QtWidgets.QDialog):
             msg.setWindowTitle("Error")
             msg.exec_()
             return
-        if self.ims_dir == "":
+        if self.img_dir == "":
             msg = QtWidgets.QMessageBox()
             msg.setIcon(QtWidgets.QMessageBox.Critical)
             msg.setText("No images folder selected")
@@ -89,7 +89,7 @@ class OpenProject(QtWidgets.QDialog):
             return
         self.parent._update_project_state(loaded=True, 
                                           filepath=self.filepath, 
-                                          ims_dir=self.ims_dir
+                                          img_dir=self.img_dir
                                           )
         msg = QtWidgets.QMessageBox(text=f"Project loaded successfully from {self.filepath}")
         msg.setIcon(QtWidgets.QMessageBox.Information)
