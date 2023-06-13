@@ -10,14 +10,16 @@ from typing import TYPE_CHECKING
 
 from magicgui import magic_factory
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget, QVBoxLayout
-from qtpy.QtWidgets import QSplitter
+from qtpy.QtWidgets import QSplitter, QTabWidget
+from qtpy.QtCore import Qt
+from napari.components.viewer_model import ViewerModel
+
 
 if TYPE_CHECKING:
     import napari
 
-# from napari.components import ViewerModel
-
 from napari_spine_tracker.tabs import *
+import napari
 import os
 
 class ExampleQWidget(QWidget):
@@ -53,7 +55,8 @@ class TrackingCorrectionWidget(QWidget):
         super().__init__()
         self.viewer = napari_viewer
 
-        # self.viewer.window.add_dock_widget(self, area="right")
+        # self.viewer.window.add_dock_widget(self, area="right", name="t1")
+        # self.viewer.window.add_dock_widget(self, area="right", name="t2")
 
         self.set_default_dirs()
         self.loaded = False
@@ -76,16 +79,7 @@ class TrackingCorrectionWidget(QWidget):
         self.layout.addWidget(btn_open_project)
         # self.layout.addWidget(btn_save_project)
         self.layout.addWidget(btn_help)
-
-        # self.viewer_model1 = ViewerModel(title="Viewer 1")
-        # self.viewer_model2 = ViewerModel(title="Viewer 2")
         
-        # self.viewer1 = self.viewer_model1.window
-        
-        # viewer_splitter = QSplitter()
-        # viewer_splitter.addWidget(self.viewer1)
-        # viewer_splitter.addWidget(self.viewer2)
-        # self.layout.addWidget(viewer_splitter)
         self.setLayout(self.layout)
 
     def _open_project(self):
@@ -123,11 +117,14 @@ class TrackingCorrectionWidget(QWidget):
     def create_correction_widgets(self):
         print("Creating correction widgets")
         # remove btn_new_project, btn_open_project, btn_help
-        for i in range(3):
+        for _ in range(3):
             self.layout.removeWidget(self.layout.itemAt(0).widget())
 
         self.refine_timetracking = RefineTimeTracking(self)
 
+if __name__ == '__main__':
+    viewer = napari.Viewer()
+    napari.run()
 
 
 

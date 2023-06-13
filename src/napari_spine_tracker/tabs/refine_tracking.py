@@ -17,7 +17,7 @@ def refine_timetracklets(napari_viewer,
         print("File type not supported, please select a .csv file")
         return None
     
-    viz = TrackletVisualizer(napari_viewer, manager, img_dir)
+    viz = TrackletVisualizer(napari_viewer, manager, img_dir, filter_t1, filter_t2)
 
     return manager, viz
 
@@ -36,7 +36,7 @@ class SettingTimepoints(QDialog):
     
     def _set_filter_t2(self):
         self.parent.filter_t2 = self.text_filter_t2.text()
-    
+
     def create_widgets(self):
         main_layout = QVBoxLayout(self)
         main_layout.addStretch()
@@ -71,10 +71,10 @@ class RefineTimeTracking(QWidget):
         print("Created RefineTimeTracking widget")
 
         self.root = root
-        self.filter_t1 = None
-        self.filter_t2 = None
+        self.filter_t1 = "_t1_" # default
+        self.filter_t2 = "_t2_" # default
         self._set_page()
-    
+
     @property
     def filepath(self):
         return os.path.join(self.root.csv_dir, self.root.filename)
@@ -111,7 +111,7 @@ class RefineTimeTracking(QWidget):
         filter_t1 = self.filter_t1
         filter_t2 = self.filter_t2
 
-        self.manager, self.viz = refine_timetracklets(self.root.viewer,
+        self.manager, self.viz = refine_timetracklets(self.root,
                                                       datafile,
                                                       img_dir,
                                                       filter_t1,
