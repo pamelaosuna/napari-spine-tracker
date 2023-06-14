@@ -17,7 +17,12 @@ def refine_timetracklets(napari_viewer,
         print("File type not supported, please select a .csv file")
         return None
     
-    viz = TrackletVisualizer(napari_viewer, manager, img_dir, filter_t1, filter_t2)
+    viz = TrackletVisualizer(napari_viewer, 
+                             manager, 
+                             img_dir, 
+                             filter_t1, 
+                             filter_t2
+                             )
 
     return manager, viz
 
@@ -43,8 +48,8 @@ class SettingTimepoints(QDialog):
 
         self.text_filter_t1 = QLineEdit()
         self.text_filter_t2 = QLineEdit()
-        self.text_filter_t1.setPlaceholderText("Filter by timepoint 1, e.g. _t1_")
-        self.text_filter_t2.setPlaceholderText("Filter by timepoint 2, e.g. _t2_")
+        self.text_filter_t1.setPlaceholderText("Filter by timepoint 1, e.g. _tp1_")
+        self.text_filter_t2.setPlaceholderText("Filter by timepoint 2, e.g. _tp2_")
         self.text_filter_t1.textChanged.connect(self._set_filter_t1)
         self.text_filter_t2.textChanged.connect(self._set_filter_t2)
         self.ok_btn = QPushButton("OK")
@@ -71,8 +76,8 @@ class RefineTimeTracking(QWidget):
         print("Created RefineTimeTracking widget")
 
         self.root = root
-        self.filter_t1 = "_t1_" # default
-        self.filter_t2 = "_t2_" # default
+        self.filter_t1 = "_tp1_" # default
+        self.filter_t2 = "_tp2_" # default
         self._set_page()
 
     @property
@@ -108,14 +113,12 @@ class RefineTimeTracking(QWidget):
             msg.setWindowTitle("Error")
             msg.exec_()
             return
-        filter_t1 = self.filter_t1
-        filter_t2 = self.filter_t2
 
         self.manager, self.viz = refine_timetracklets(self.root,
                                                       datafile,
                                                       img_dir,
-                                                      filter_t1,
-                                                      filter_t2)
+                                                      self.filter_t1,
+                                                      self.filter_t2)
 
         
 
