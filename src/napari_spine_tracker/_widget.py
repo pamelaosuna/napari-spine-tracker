@@ -50,7 +50,7 @@ def example_magic_widget(img_layer: "napari.layers.Image"):
 def example_function_widget(img_layer: "napari.layers.Image"):
     print(f"you have selected {img_layer}")
 
-class TrackingCorrectionWidget(QWidget):
+class TrackingCurationWidget(QWidget):
     def __init__(self, napari_viewer):
         super().__init__()
         self.viewer = napari_viewer
@@ -59,7 +59,7 @@ class TrackingCorrectionWidget(QWidget):
         # self.viewer.window.add_dock_widget(self, area="right", name="t2")
 
         self.set_default_dirs()
-        self.loaded = False
+        self.data_loaded = False
 
         self.create_initial_widgets()
     
@@ -103,19 +103,19 @@ class TrackingCorrectionWidget(QWidget):
         self.csv_dir_default = os.path.join(os.getcwd(), "..", "eval_ttrack")
         self.img_dir_default = os.path.join(os.getcwd(), "..", "benzo_pipeline", "A2_registered", "8bit", "subs")
     
-    def _update_project_state(self, loaded, filepath, img_dir):
+    def _update_loaded_state(self, loaded, filepath, img_dir):
         print("Updating project state")
-        self.loaded = loaded
+        self.data_loaded = loaded
         self.filepath = filepath
         self.img_dir = img_dir
         self.csv_dir = os.path.dirname(self.filepath)
         self.filename = os.path.basename(self.filepath)
 
         if loaded:
-            self.create_correction_widgets()
+            self.create_curation_widgets()
     
-    def create_correction_widgets(self):
-        print("Creating correction widgets")
+    def create_curation_widgets(self):
+        print("Creating curation widgets")
         # remove btn_new_project, btn_open_project, btn_help
         for _ in range(3):
             self.layout.removeWidget(self.layout.itemAt(0).widget())

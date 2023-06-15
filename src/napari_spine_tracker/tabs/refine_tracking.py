@@ -78,6 +78,7 @@ class RefineTimeTracking(QWidget):
         self.root = root
         self.filter_t1 = "_tp1_" # default
         self.filter_t2 = "_tp2_" # default
+        self.launched = False
         self._set_page()
 
     @property
@@ -114,11 +115,20 @@ class RefineTimeTracking(QWidget):
             msg.exec_()
             return
 
+        self._update_launched_state(True)
         self.manager, self.viz = refine_timetracklets(self.root,
                                                       datafile,
                                                       img_dir,
                                                       self.filter_t1,
                                                       self.filter_t2)
+    
+    def _update_launched_state(self, launched):
+        print("Updating viewer state")
+        self.launched = launched
+
+        if launched:
+            self.root.layout.removeWidget(self.launch_btn)
+            self.root.layout.removeWidget(self.set_tp_filters_btn)
 
         
 

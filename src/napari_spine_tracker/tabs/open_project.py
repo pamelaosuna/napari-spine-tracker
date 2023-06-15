@@ -87,7 +87,7 @@ class OpenProject(QtWidgets.QDialog):
             msg.setWindowTitle("Error")
             msg.exec_()
             return
-        self.parent._update_project_state(loaded=True, 
+        self.parent._update_loaded_state(loaded=True, 
                                           filepath=self.filepath, 
                                           img_dir=self.img_dir
                                           )
