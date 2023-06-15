@@ -15,9 +15,6 @@ from qtpy.QtWidgets import (
 from napari.components.viewer_model import ViewerModel
 from napari_spine_tracker.tabs.multi_view import  QtViewerWrap
 
-def make_bboxes(objs):
-    return np.array([[[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] for xmin, ymin, xmax, ymax in objs[:, :4]])
-
 class FrameReader(QWidget):
     """
     Dummy widget showcasing how to place additional widgets to the right
@@ -31,6 +28,7 @@ class FrameReader(QWidget):
         self.filenames = filenames
 
         self.synchronize = False
+        self.show_bboxes = False
 
         self.btn = QPushButton("Perform action")
         init_frame_val = 0
@@ -46,6 +44,10 @@ class FrameReader(QWidget):
         self.fname_text.setAlignment(Qt.AlignLeft)
         self.fname_text.setStyleSheet("font: 10pt")
 
+        self.show_bboxes_checkbox = QCheckBox('Show Bounding Boxes')
+        self.show_bboxes_checkbox.setChecked(self.show_bboxes)
+        self.show_bboxes_checkbox.stateChanged.connect(self.show_bboxes_in_frame)
+
         # self.contrast_range_slider = QSlider(Qt.Horizontal)
         # self.contrast_range_slider.valueChanged.connect(self._set_contrast_limits)
 
@@ -56,6 +58,7 @@ class FrameReader(QWidget):
         layout.addWidget(self.fname_text)
         layout.addWidget(self.frame_text)
         layout.addWidget(self.frame_slider)
+        layout.addWidget(self.show_bboxes_checkbox)
         # layout.addWidget(self.spin)
         layout.addWidget(self.btn)
         layout.addStretch(1)
@@ -88,12 +91,17 @@ class FrameReader(QWidget):
         self.viewer_model.layers[self.filenames[self.frame_num]].contrast_limits = (cmin, cmax)
 
     def show_bboxes_in_frame(self):
-        # make invisible all bboxes except for the ones in the current frame
-        for layer in self.viewer_model.layers:
-            if 'bboxes_' in layer.name:
-                if layer.name.split('_')[1] == str(self.frame_num):
-                    layer.visible = True
-                else:
+        if self.show_bboxes_checkbox.isChecked():
+            # make invisible all bboxes except for the ones in the current frame
+            for layer in self.viewer_model.layers:
+                if 'bboxes_' in layer.name:
+                    if layer.name.split('_')[1].split('_')[0] == str(self.frame_num):
+                        layer.visible = True
+                    else:
+                        layer.visible = False
+        else:
+            for layer in self.viewer_model.layers:
+                if 'bboxes_' in layer.name:
                     layer.visible = False
 
 class TrackletVisualizer:
@@ -130,8 +138,6 @@ class TrackletVisualizer:
         
         self._prepare_visualizer()
         self.add_bboxes()
-        self.frame_reader1.show_bboxes_in_frame()
-        self.frame_reader2.show_bboxes_in_frame()
 
     def _prepare_visualizer(self):
         self.viewer_model1 = ViewerModel(title="model1")
@@ -174,30 +180,41 @@ class TrackletVisualizer:
             self.frame_reader2.frame_slider.valueChanged.disconnect(self.frame_reader1.set_frame)
     
     def add_bboxes(self):
+        text_params = {
+                    'string': 'lalala',
+                    'size': 20,
+                    'color': 'red',
+                    'anchor': 'upper_left',
+                    'translation': [-1, 1],
+                    }
         for frame_num in range(len(self.filenames_t1)):
             objs_t1 = self.objects[self.objects[:, -2] == self.filenames_t1[frame_num]]
-            objs_t1 = make_bboxes(objs_t1)
-            if len(objs_t1) > 0:
-                self.viewer_model1.add_shapes(objs_t1,
-                                                shape_type='rectangle',
-                                                edge_width=1,
-                                                edge_color='red',
-                                                face_color='red',
-                                                name=f'bboxes_{frame_num}'
-                                                )
+            for obj in objs_t1:
+                x1, y1, x2, y2 = obj[:4]
+                rect = [[y1, x1], [y1, x2], [y2, x2], [y2, x1]]
+                id = obj[-3]
+                # text_params['string'] = str(id)
+                self.viewer_model1.add_shapes(rect,
+                                       shape_type='rectangle',
+                                       edge_color='red',
+                                       face_color='transparent',
+                                       name=f'bboxes_{frame_num}_{id}',
+                                       visible=False,
+                                       )
+
             objs_t2 = self.objects[self.objects[:, -2] == self.filenames_t2[frame_num]]
-            objs_t2 = make_bboxes(objs_t2)
-            if len(objs_t2) > 0:
-                self.viewer_model2.add_shapes(objs_t2,
-                                                shape_type='rectangle',
-                                                edge_width=1,
-                                                edge_color='red',
-                                                face_color='red',
-                                                name=f'bboxes_{frame_num}'
-                                                )
-                                              
-            # print(f'Added {len(objs_t1)} and {len(objs_t2)} bboxes to frame {frame_num}')
-                                          
+            for obj in objs_t2:
+                x1, y1, x2, y2 = obj[:4]
+                rect = [[y1, x1], [y1, x2], [y2, x2], [y2, x1]]
+                id = obj[-3]
+                # text_params['string'] = str(id)
+                self.viewer_model2.add_shapes(rect,
+                                       shape_type='rectangle',
+                                       edge_color='red',
+                                       face_color='transparent',
+                                       name=f'bboxes_{frame_num}_{id}',
+                                       visible=False,
+                                       )
             
             
 
