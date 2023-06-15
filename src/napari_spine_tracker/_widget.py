@@ -56,15 +56,16 @@ class TrackingCurationWidget(QWidget):
         super().__init__()
         self.viewer = napari_viewer
 
-        # self.viewer.window.add_dock_widget(self, area="right", name="t1")
-        # self.viewer.window.add_dock_widget(self, area="right", name="t2")
+        # hide panel layer controls
+        # self.viewer.window._qt_viewer.dockLayerControls.toggleViewAction().trigger()
+        # self.viewer.window._qt_viewer.dockLayerList.toggleViewAction().trigger()
 
         self.set_default_dirs()
         self.data_loaded = False
 
-        self.create_initial_widgets()
-    
-    def create_initial_widgets(self):
+        self._create_initial_widgets()
+
+    def _create_initial_widgets(self):
         btn_new_project = QPushButton("New Project")
         btn_open_project = QPushButton("Open Project")
         # btn_save_project = QPushButton("Save Project")
@@ -84,6 +85,8 @@ class TrackingCurationWidget(QWidget):
         self.setLayout(self.layout)
 
     def _open_project(self):
+        self.parent().setFloating(True)
+        self.parent().showMaximized()
         print("Open Project")
         open_project = OpenProject(self)
         open_project.show()
@@ -113,9 +116,9 @@ class TrackingCurationWidget(QWidget):
         self.filename = os.path.basename(self.filepath)
 
         if loaded:
-            self.create_curation_widgets()
+            self._create_curation_widgets()
     
-    def create_curation_widgets(self):
+    def _create_curation_widgets(self):
         print("Creating curation widgets")
         # remove btn_new_project, btn_open_project, btn_help
         for _ in range(3):
@@ -124,43 +127,8 @@ class TrackingCurationWidget(QWidget):
         self.refine_timetracking = RefineTimeTracking(self)
 
 if __name__ == '__main__':
-    # viewer = napari.Viewer()
-    # napari.run()
-
-    # add the image
     viewer = napari.Viewer()
-
-    person = np.array([[505, 60], [402, 71], [383, 42], [251, 95], [212, 59],
-                   [131, 137], [126, 187], [191, 204], [171, 248], [211, 260],
-                   [273, 243], [264, 225], [430, 173], [512, 160]])
-
-    building = np.array([[310, 382], [229, 381], [209, 401], [221, 411],
-                     [258, 411], [300, 412], [306, 435], [268, 434],
-                     [265, 454], [298, 461], [307, 461], [307, 507],
-                     [349, 510], [352, 369], [330, 366], [330, 366]])
-    
-    polygons = [building]
-
-
-
-    text_parameters = {
-        "string": "label",
-        "size": 100,
-        "color": "red",
-        "anchor": "center",
-    }
-
-
-    # add the polygons
-    shapes_layer = viewer.add_shapes(polygons, 
-                                     shape_type='polygon', 
-                                     edge_width=2,
-                                      edge_color='coral', 
-                                      face_color='transparent',
-                                      text=text_parameters,
-                                      )
     napari.run()
-
 
 
 

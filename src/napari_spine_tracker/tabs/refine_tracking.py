@@ -4,20 +4,20 @@ import os
 from napari_spine_tracker.refinement_utils.manager import TrackletManager
 from napari_spine_tracker.refinement_utils.visualizer import TrackletVisualizer
 
-def refine_timetracklets(napari_viewer,
+def refine_timetracklets(root_widget,
                          datafile, 
                          img_dir, 
                          filter_t1, 
                          filter_t2
                          ):
-    manager = TrackletManager()
+    manager = TrackletManager(root_widget)
     if datafile.endswith(".csv"):
         manager.load_tracklets_from_csv(datafile)
     else:
         print("File type not supported, please select a .csv file")
         return None
     
-    viz = TrackletVisualizer(napari_viewer, 
+    viz = TrackletVisualizer(root_widget, 
                              manager, 
                              img_dir, 
                              filter_t1, 

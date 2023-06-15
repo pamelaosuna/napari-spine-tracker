@@ -4,12 +4,15 @@ import pandas as pd
 
 from qtpy.QtWidgets import (
     QPushButton,
+    QHBoxLayout
 )
 
 class TrackletManager:
-    def __init__(self):
+    def __init__(self,
+                 root_widget):
         print("TrackletManager created")
         self.filepath = None
+        self.root_widget = root_widget
         # self.filename = None
         self.data = None
         self.objects = None
@@ -22,6 +25,9 @@ class TrackletManager:
     def _create_initial_widgets(self):
         self.save_btn = QPushButton("Save")
         self.save_btn.clicked.connect(self.save)
+
+        self.root_widget.layout.addWidget(self.save_btn)
+
     
     def _load_tracklets(self, df_tracklets):
         objs = df_tracklets[['xmin', 

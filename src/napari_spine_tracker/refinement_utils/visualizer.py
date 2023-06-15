@@ -180,26 +180,37 @@ class TrackletVisualizer:
             self.frame_reader2.frame_slider.valueChanged.disconnect(self.frame_reader1.set_frame)
     
     def add_bboxes(self):
-        text_params = {
-                    'string': 'lalala',
-                    'size': 20,
-                    'color': 'red',
-                    'anchor': 'upper_left',
-                    'translation': [-1, 1],
-                    }
+        # text_params = {
+        #             'string': 'lalala',
+        #             'size': 20,
+        #             'color': 'red',
+        #             'anchor': 'upper_left',
+        #             'translation': [-1, 1],
+        #             }
         for frame_num in range(len(self.filenames_t1)):
             objs_t1 = self.objects[self.objects[:, -2] == self.filenames_t1[frame_num]]
             for obj in objs_t1:
                 x1, y1, x2, y2 = obj[:4]
                 rect = [[y1, x1], [y1, x2], [y2, x2], [y2, x1]]
                 id = obj[-3]
-                # text_params['string'] = str(id)
+                feats = {
+                    'id': [str(id)],
+                }
+                text = {
+                    'string': 'id',
+                    'size': 8,
+                    'color': 'red',
+                    'anchor': 'upper_left',
+                    'translation': [-1, 1],
+                }
                 self.viewer_model1.add_shapes(rect,
+                                       features=feats,
                                        shape_type='rectangle',
                                        edge_color='red',
                                        face_color='transparent',
                                        name=f'bboxes_{frame_num}_{id}',
                                        visible=False,
+                                       text=text,
                                        )
 
             objs_t2 = self.objects[self.objects[:, -2] == self.filenames_t2[frame_num]]
@@ -207,13 +218,24 @@ class TrackletVisualizer:
                 x1, y1, x2, y2 = obj[:4]
                 rect = [[y1, x1], [y1, x2], [y2, x2], [y2, x1]]
                 id = obj[-3]
-                # text_params['string'] = str(id)
+                feats = {
+                    'id': [str(id)],
+                }
+                text = {
+                    'string': 'id',
+                    'size': 4,
+                    'color': 'red',
+                    'anchor': 'upper_left',
+                    'translation': [-1, 1],
+                }
                 self.viewer_model2.add_shapes(rect,
+                                       features=feats,
                                        shape_type='rectangle',
                                        edge_color='red',
                                        face_color='transparent',
                                        name=f'bboxes_{frame_num}_{id}',
                                        visible=False,
+                                       text=text,
                                        )
             
             
