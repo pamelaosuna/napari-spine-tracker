@@ -11,9 +11,11 @@ from qtpy.QtWidgets import (
     QLabel,
     QCheckBox,
     )
+from qtpy.QtGui import QIcon
 
 from napari.components.viewer_model import ViewerModel
 from napari_spine_tracker.tabs.multi_view import  QtViewerWrap
+from superqt import QRangeSlider
 
 class FrameReader(QWidget):
     """
@@ -30,13 +32,18 @@ class FrameReader(QWidget):
         self.synchronize = False
         self.show_bboxes = False
 
-        self.btn = QPushButton("Perform action")
+        self._prepare_reader()
+
+
+    def _prepare_reader(self):
         init_frame_val = 0
-        self.frame_num = 0
+
+        self.frame_num = init_frame_val
         self.frame_slider = QSlider(Qt.Horizontal)
         self.frame_slider.setMinimum(0)
-        self.frame_slider.setMaximum(len(filenames)-1)
+        self.frame_slider.setMaximum(len(self.filenames)-1)
         self.frame_slider.setValue(init_frame_val)
+        self.frame_slider.valueChanged.connect(self.set_frame)
 
         self.frame_text = QLabel(f'Frame number: {self.frame_num}')
         self.frame_text.setAlignment(Qt.AlignCenter)
@@ -48,23 +55,19 @@ class FrameReader(QWidget):
         self.show_bboxes_checkbox.setChecked(self.show_bboxes)
         self.show_bboxes_checkbox.stateChanged.connect(self.show_bboxes_in_frame)
 
-        # self.contrast_range_slider = QSlider(Qt.Horizontal)
-        # self.contrast_range_slider.valueChanged.connect(self._set_contrast_limits)
+        self.contrast_range_slider = QRangeSlider(Qt.Orientation.Horizontal, self)
+        self.contrast_range_slider.valueChanged.connect(self._set_contrast_limits)
 
-        self.frame_slider.valueChanged.connect(self.set_frame)
-        
-        # self.spin = QDoubleSpinBox()
+        # # when user presses click + shift, the selection mode is toggled
+        # self.viewer_model.events.mouse_press.connect(self._toggle_select)
+
         layout = QVBoxLayout()
-        layout.addWidget(self.fname_text)
-        layout.addWidget(self.frame_text)
-        layout.addWidget(self.frame_slider)
-        layout.addWidget(self.show_bboxes_checkbox)
-        # layout.addWidget(self.spin)
-        layout.addWidget(self.btn)
+        for w in [self.fname_text, self.frame_text, self.frame_slider, self.show_bboxes_checkbox, self.contrast_range_slider]:
+            layout.addWidget(w)
         layout.addStretch(1)
         self.setLayout(layout)
 
-        self.add_images()
+        self._add_init_images()
         self.viewer_model.layers[init_frame_val].visible = True
 
     def set_frame(self, frame):
@@ -77,17 +80,30 @@ class FrameReader(QWidget):
         self.frame_num = frame
         self.show_bboxes_in_frame()
 
-    def add_images(self):
+    def _add_init_images(self):
         print(f'Adding {len(self.filenames)} images to viewer')
+        imgs = []
         for fn in self.filenames:
             img = io.imread(os.path.join(self.img_dir, fn))
+            imgs.append(img)
             self.viewer_model.add_image(img, name=fn)
             self.viewer_model.layers[fn].visible = False
-    
+
+        imgs = np.array(imgs)
+        max_val = np.max(imgs)
+        # convert max_val to binary and see how many digits it has
+        max_val_bin = bin(max_val)[2:]
+        max_val_bin_len = len(max_val_bin)
+
+        # set contrast limits to be 0 and 2^max_val_bin_len
+        self.contrast_range_slider.setRange(0, 2**max_val_bin_len)
+        self.contrast_range_slider.setValue([0, 2**max_val_bin_len])
+
     def update_synchronize(self):
         self.synchronize = not(self.synchronize)
 
-    def _set_contrast_limits(self, cmin, cmax):
+    def _set_contrast_limits(self, values):
+        cmin, cmax = values
         self.viewer_model.layers[self.filenames[self.frame_num]].contrast_limits = (cmin, cmax)
 
     def show_bboxes_in_frame(self):
@@ -103,6 +119,14 @@ class FrameReader(QWidget):
             for layer in self.viewer_model.layers:
                 if 'bboxes_' in layer.name:
                     layer.visible = False
+    
+    # def _toggle_select(self, event):
+    #     # if user clicks on a shape and presses 'shift', select the shape
+    #     if event.key == 'Shift':
+    #         if event.item is not None and 'bbox_' in event.item.name:
+    #             event.item.selected = not(event.item.selected)
+    #             self.viewer_model.layers[self.filenames[self.frame_num]].refresh()
+    #             self.viewer_model.layers[self.filenames[self.frame_num]].events.data_view_changed()
 
 class TrackletVisualizer:
     def __init__(self, 
@@ -119,11 +143,11 @@ class TrackletVisualizer:
         
         self.synchronize = False # synchronize frame slider across viewers
 
-        self.filenames = manager.filenames
-        self.objects = manager.objects
+        self.unq_filenames = manager.unq_filenames
+        # self.objects = manager.objects
         self.data = manager.data
 
-        self.stack_names = np.unique([f.split('_layer')[0] for f in self.filenames])
+        self.stack_names = np.unique([f.split('_layer')[0] for f in self.unq_filenames])
         all_filenames = []
         for sn in self.stack_names:
             all_filenames += list(glob.glob(os.path.join(self.img_dir, f"{sn}_layer*.png")))
@@ -137,7 +161,7 @@ class TrackletVisualizer:
             return
         
         self._prepare_visualizer()
-        self.add_bboxes()
+        self._add_init_bboxes()
 
     def _prepare_visualizer(self):
         self.viewer_model1 = ViewerModel(title="model1")
@@ -179,65 +203,58 @@ class TrackletVisualizer:
             self.frame_reader1.frame_slider.valueChanged.disconnect(self.frame_reader2.set_frame)
             self.frame_reader2.frame_slider.valueChanged.disconnect(self.frame_reader1.set_frame)
     
-    def add_bboxes(self):
-        # text_params = {
-        #             'string': 'lalala',
-        #             'size': 20,
-        #             'color': 'red',
-        #             'anchor': 'upper_left',
-        #             'translation': [-1, 1],
-        #             }
-        for frame_num in range(len(self.filenames_t1)):
-            objs_t1 = self.objects[self.objects[:, -2] == self.filenames_t1[frame_num]]
-            for obj in objs_t1:
-                x1, y1, x2, y2 = obj[:4]
-                rect = [[y1, x1], [y1, x2], [y2, x2], [y2, x1]]
-                id = obj[-3]
-                feats = {
-                    'id': [str(id)],
-                }
-                text = {
+    def _add_init_bboxes(self):
+        text_params = {
                     'string': 'id',
                     'size': 8,
                     'color': 'red',
                     'anchor': 'upper_left',
                     'translation': [-1, 1],
                 }
-                self.viewer_model1.add_shapes(rect,
-                                       features=feats,
-                                       shape_type='rectangle',
-                                       edge_color='red',
-                                       face_color='transparent',
-                                       name=f'bboxes_{frame_num}_{id}',
-                                       visible=False,
-                                       text=text,
-                                       )
-
-            objs_t2 = self.objects[self.objects[:, -2] == self.filenames_t2[frame_num]]
-            for obj in objs_t2:
-                x1, y1, x2, y2 = obj[:4]
-                rect = [[y1, x1], [y1, x2], [y2, x2], [y2, x1]]
-                id = obj[-3]
+        for frame_num in range(len(self.filenames_t1)):
+            objs_t1 = self.data[self.data['filename'].str.contains(self.filenames_t1[frame_num])]
+            for i, row in objs_t1.iterrows():
+                xmin, ymin, xmax, ymax = row[['xmin', 'ymin', 'xmax', 'ymax']]
+                bbox_rect = [[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]]
+                id = row['id']
                 feats = {
                     'id': [str(id)],
                 }
-                text = {
-                    'string': 'id',
-                    'size': 4,
-                    'color': 'red',
-                    'anchor': 'upper_left',
-                    'translation': [-1, 1],
-                }
-                self.viewer_model2.add_shapes(rect,
+                c = 'red' if str(row['class']) == 'spine' else 'green'
+                text_params['color'] = c
+                self.viewer_model1.add_shapes(bbox_rect,
                                        features=feats,
                                        shape_type='rectangle',
-                                       edge_color='red',
+                                       edge_color=c,
                                        face_color='transparent',
-                                       name=f'bboxes_{frame_num}_{id}',
+                                       name=f'bbox_{frame_num}_{id}',
                                        visible=False,
-                                       text=text,
+                                       text=text_params,
                                        )
-            
+
+            objs_t2 = self.data[self.data['filename'].str.contains(self.filenames_t2[frame_num])]
+            for i, row in objs_t2.iterrows():
+                c = 'red' if str(row['class']) == 'spine' else 'green'
+                text_params['color'] = c
+                xmin, ymin, xmax, ymax = row[['xmin', 'ymin', 'xmax', 'ymax']]
+                bbox_rect = [[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]]
+                id = row['id']
+                feats = {
+                    'id': [str(id)],
+                }
+                self.viewer_model2.add_shapes(bbox_rect,
+                                       features=feats,
+                                       shape_type='rectangle',
+                                       edge_color=c,
+                                       face_color='transparent',
+                                       name=f'bbox_{frame_num}_{id}',
+                                       visible=False,
+                                       text=text_params,
+                                       )
+
+        
+
+
             
 
 

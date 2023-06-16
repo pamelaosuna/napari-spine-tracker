@@ -10,10 +10,7 @@ from typing import TYPE_CHECKING
 
 from magicgui import magic_factory
 from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget, QVBoxLayout
-from qtpy.QtWidgets import QSplitter, QTabWidget
 from qtpy.QtCore import Qt
-from napari.components.viewer_model import ViewerModel
-
 
 if TYPE_CHECKING:
     import napari
@@ -68,19 +65,18 @@ class TrackingCurationWidget(QWidget):
     def _create_initial_widgets(self):
         btn_new_project = QPushButton("New Project")
         btn_open_project = QPushButton("Open Project")
-        # btn_save_project = QPushButton("Save Project")
         btn_help = QPushButton("Help")
 
         btn_open_project.clicked.connect(self._open_project)
-        # btn_save_project.clicked.connect(self._save_project)
         btn_help.clicked.connect(self._help)
         btn_new_project.clicked.connect(self._new_project)
 
         self.layout = QVBoxLayout()
-        self.layout.addWidget(btn_new_project)
-        self.layout.addWidget(btn_open_project)
-        # self.layout.addWidget(btn_save_project)
-        self.layout.addWidget(btn_help)
+        for btn in [btn_new_project, btn_open_project, btn_help]:
+            btn.setFixedHeight(50)
+            btn.setFixedWidth(200)
+            btn.setStyleSheet("font-size: 20px;")
+            self.layout.addWidget(btn, alignment=Qt.AlignCenter)
         
         self.setLayout(self.layout)
 
@@ -91,10 +87,6 @@ class TrackingCurationWidget(QWidget):
         open_project = OpenProject(self)
         open_project.show()
     
-    def _save_project(self):
-        print("Save Project")
-        # TODO
-
     def _help(self):
         print("Help")
         # TODO

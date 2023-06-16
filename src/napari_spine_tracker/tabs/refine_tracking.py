@@ -1,4 +1,6 @@
 from qtpy.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLineEdit, QDialog, QMessageBox
+from qtpy.QtCore import Qt
+
 import os
 
 from napari_spine_tracker.refinement_utils.manager import TrackletManager
@@ -52,13 +54,13 @@ class SettingTimepoints(QDialog):
         self.text_filter_t2.setPlaceholderText("Filter by timepoint 2, e.g. _tp2_")
         self.text_filter_t1.textChanged.connect(self._set_filter_t1)
         self.text_filter_t2.textChanged.connect(self._set_filter_t2)
-        self.ok_btn = QPushButton("OK")
-        self.ok_btn.setDefault(True)
-        self.ok_btn.clicked.connect(self.close_dialog)
+        ok_btn = QPushButton("OK")
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(self.close_dialog)
 
         main_layout.addWidget(self.text_filter_t1)
         main_layout.addWidget(self.text_filter_t2)
-        main_layout.addWidget(self.ok_btn)
+        main_layout.addWidget(ok_btn)
     
     def close_dialog(self):
         if self.parent.filter_t1 is None or self.parent.filter_t2 is None:
@@ -90,14 +92,18 @@ class RefineTimeTracking(QWidget):
         return self.root.img_dir
     
     def _set_page(self):
-        self.launch_btn = QPushButton("Launch time-tracking refinement")
-        self.launch_btn.clicked.connect(self._launch_refinement)
+        launch_btn = QPushButton("Launch time-tracking refinement")
+        launch_btn.clicked.connect(self._launch_refinement)
 
-        self.set_tp_filters_btn = QPushButton("Set timepoint filters")
-        self.set_tp_filters_btn.clicked.connect(self._set_tp_filters)
+        set_tp_filters_btn = QPushButton("Set timepoint filters")
+        set_tp_filters_btn.clicked.connect(self._set_tp_filters)
        
-        self.root.layout.addWidget(self.launch_btn)
-        self.root.layout.addWidget(self.set_tp_filters_btn)
+        for btn in [launch_btn, set_tp_filters_btn]:
+            btn.setFixedHeight(50)
+            btn.setFixedWidth(300)
+            btn.setStyleSheet("font-size: 20px;")
+            self.root.layout.addWidget(btn, alignment=Qt.AlignCenter)
+            
     
     def _set_tp_filters(self):
         setting_timepoints = SettingTimepoints(self)
@@ -127,9 +133,8 @@ class RefineTimeTracking(QWidget):
         self.launched = launched
 
         if launched:
-            self.root.layout.removeWidget(self.launch_btn)
-            self.root.layout.removeWidget(self.set_tp_filters_btn)
-
+            for _ in range(2):
+                self.root.layout.removeWidget(self.root.layout.itemAt(0).widget())
         
 
 
