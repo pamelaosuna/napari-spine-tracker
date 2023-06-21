@@ -41,6 +41,7 @@ class TrackletManager:
     def load_tracklets_from_csv(self, datafile):
         self.filepath = datafile
         self.data = pd.read_csv(datafile)
+        # self.data = self.data[self.data['filename'].str.contains('layer076')] # TODO: remove after testing
         self._load_tracklets(self.data)
     
     def save(self, output_name="", *args):
