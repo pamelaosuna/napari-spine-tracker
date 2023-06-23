@@ -20,16 +20,17 @@ from qtpy.QtGui import QIcon, QIntValidator
 from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Mode
 from napari.components.viewer_model import ViewerModel
-from napari_spine_tracker.tabs.multi_view import  QtViewerWrap
+from napari_spine_tracker.tabs.multi_view  import  QtViewerWrap
 from superqt import QRangeSlider
 
 class FrameReader(QWidget):
     """
     Dummy widget showcasing how to place additional widgets to the right
-    of the additional viewers.
+    of the additional viewers. # TODO: rewrite
     """
-    def __init__(self, viz, viewer_model, img_dir, filenames):
+    def __init__(self, viz, viewer_model, img_dir, filenames, tp_name):
         super().__init__()
+        self.tp_name = tp_name
         self.viz = viz
         self.viewer_model = viewer_model
         self.img_dir = img_dir
@@ -37,14 +38,19 @@ class FrameReader(QWidget):
 
         self.synchronize = False
         self.show_bboxes = False
-        self.selected_rect = None
+        self.last_interacted_shape = None
 
         self._prepare_reader()
 
     def _prepare_reader(self):
         init_frame_val = 0
 
+        self._old_frame = None
         self.frame_num = init_frame_val
+
+        self._load_images()
+        self.viewer_model.add_image(self.imgs[init_frame_val], name=self.filenames[init_frame_val])
+
         self.frame_slider = QSlider(Qt.Horizontal)
         self.frame_slider.setMinimum(0)
         self.frame_slider.setMaximum(len(self.filenames)-1)
@@ -58,11 +64,14 @@ class FrameReader(QWidget):
         self.fname_text.setStyleSheet("font: 10pt")
 
         self.show_bboxes_checkbox = QCheckBox('Show Bounding Boxes')
-        self.show_bboxes_checkbox.setChecked(self.show_bboxes)
         self.show_bboxes_checkbox.stateChanged.connect(self.show_bboxes_in_frame)
 
         self.contrast_range_slider = QRangeSlider(Qt.Orientation.Horizontal, self)
         self.contrast_range_slider.valueChanged.connect(self._set_contrast_limits)
+
+        # set contrast limits to be 0 and 2^max_val_bin_len
+        self.contrast_range_slider.setRange(0, 2**self.max_val_bin_len)
+        self.contrast_range_slider.setValue([0, 2**self.max_val_bin_len])
 
         layout = QVBoxLayout()
         for w in [self.fname_text, self.frame_text, self.frame_slider, self.show_bboxes_checkbox, self.contrast_range_slider]:
@@ -70,44 +79,30 @@ class FrameReader(QWidget):
         layout.addStretch(1)
         self.setLayout(layout)
 
-        self._add_init_images()
-        self.viewer_model.layers[init_frame_val].visible = True
-
-        # self._add_mouse_callbacks(self.viewer_model)
-
     def set_frame(self, frame):
-        for layer in self.viewer_model.layers:
-            layer.visible = False
-        self.viewer_model.layers[frame].visible = True
+        self._old_frame = self.frame_num
+        self.viz.update_data(self.viewer_model.layers)
+        self.viewer_model.layers.remove(self.filenames[self.frame_num])
+        self.viewer_model.add_image(self.imgs[frame], name=self.filenames[frame])
         self.frame_slider.setValue(frame)
         self.frame_text.setText(f'Frame number: {frame}')
         self.fname_text.setText(self.filenames[frame])
         self.frame_num = frame
+        self.remove_bboxes()
         self.show_bboxes_in_frame()
         self._set_contrast_limits(self.contrast_range_slider.value())
-        self.viz._make_unselectable(self.viewer_model)
-        if self.viz.selection_mode.isChecked():
-            self.viz.selection_mode.setChecked(False)
-        # if self.selected_rect is not None:
-        #     self.deselect_rect(self.selected_rect)
 
-    def _add_init_images(self):
+    def _load_images(self):
         print(f'Adding {len(self.filenames)} images to viewer')
         imgs = []
         for fn in self.filenames:
             img = io.imread(os.path.join(self.img_dir, fn))
             imgs.append(img)
-            self.viewer_model.add_image(img, name=fn)
-            self.viewer_model.layers[fn].visible = False
 
-        imgs = np.array(imgs)
+        self.imgs = np.array(imgs)
         max_val = np.max(imgs)
         max_val_bin = bin(max_val)[2:]
-        max_val_bin_len = len(max_val_bin)
-
-        # set contrast limits to be 0 and 2^max_val_bin_len
-        self.contrast_range_slider.setRange(0, 2**max_val_bin_len)
-        self.contrast_range_slider.setValue([0, 2**max_val_bin_len])
+        self.max_val_bin_len = len(max_val_bin)
 
     def update_synchronize(self):
         self.synchronize = not(self.synchronize)
@@ -116,57 +111,65 @@ class FrameReader(QWidget):
         cmin, cmax = values
         self.viewer_model.layers[self.filenames[self.frame_num]].contrast_limits = (cmin, cmax)
 
+    def remove_bboxes(self):
+        for layer in self.viewer_model.layers:
+            if 'bbox_' in layer.name:
+                self.viewer_model.layers.remove(layer)
+
     def show_bboxes_in_frame(self):
         if self.show_bboxes_checkbox.isChecked():
-            # make invisible all bboxes except for the ones in the current frame
-            for layer in self.viewer_model.layers:
-                if 'bbox_' in layer.name:
-                    if layer.name.split('_')[1].split('_')[0] == str(self.frame_num):
-                        layer.visible = True
-                    else:
-                        layer.visible = False
-        else:
-            for layer in self.viewer_model.layers:
-                if 'bbox_' in layer.name:
-                    layer.visible = False
-    
-    def deselect_rect(self, rect_name):
-        self.viewer_model.layers[rect_name].mode = Mode.PAN_ZOOM
-        # self.viewer_model.layers[rect_name].selected = False
-        # self.viewer_model.layers[rect_name].edge_width = 1
-        self.selected_rect = None
-    
-    def select_rect(self, rect_name):
-        self.viewer_model.layers[rect_name].mode = Mode.SELECT
-        # self.viewer_model.layers[rect_name].selected = True
-        # self.viewer_model.layers[rect_name].edge_width = 3
-        self.selected_rect = rect_name
-    
-    def _add_mouse_callbacks(self, viewer):
-        @viewer.mouse_drag_callbacks.append
-        def toggle_select(viewer, event):
-            if not self.show_bboxes_checkbox.isChecked() or self.viz.selection_mode.isChecked():
-                return
-            if event.button == 1 and self.viz.selection_mode.isChecked():
-                print('mouse callback')
-                # if self.selected_rect is None:
-                #     # get visible layers and check if mouse is in any of them
-                #     visible_rects = [layer for layer in viewer.layers if layer.visible and 'bbox_' in layer.name]
-                #     y_mouse, x_mouse = event.position
-                #     for layer in visible_rects:
-                #         # layer.data example: [array([[345., 231.],[345., 249.],[363., 249.],[363., 231.]])]
-                #         ymin, xmin = layer.data[0][0]
-                #         ymax, xmax = layer.data[0][2]
-                #         if x_mouse > xmin and x_mouse < xmax and y_mouse > ymin and y_mouse < ymax:
-                #             print('mouse in bbox, yay!')
-                #             self.select_rect(layer.name)
-                #             break
-                # else:
-                #     self.deselect_rect(self.selected_rect)
+            objs = self.viz.data[self.viz.data['filename'].str.contains(self.filenames[self.frame_num])]
+            text_params = {
+                    'string': 'id',
+                    'size': 8,
+                    'color': 'yellow',
+                    'anchor': 'upper_left',
+                    'translation': [-1, 1],
+                }
+            for i, row in objs.iterrows():
+                xmin, ymin, xmax, ymax = row[['xmin', 'ymin', 'xmax', 'ymax']]
+                bbox_rect = [[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]]
+                id = row['id']
+                feats = {
+                    'id': [str(id)],
+                }
+                c = 'yellow' if str(row['class']) == 'spine' else 'green'
+                text_params['color'] = c
+                layer_name = f'bbox_{id}_{self.filenames[self.frame_num]}'
+                self.viewer_model.add_shapes(bbox_rect,
+                                       features=feats,
+                                       shape_type='rectangle',
+                                       edge_color=c,
+                                       face_color='transparent',
+                                       name=layer_name,
+                                       visible=True,
+                                       text=text_params,
+                                       )
+                shape_layer = self.viewer_model.layers[layer_name]
+                if self.viz.selection_mode.isChecked():
+                    shape_layer.mode = Mode.SELECT
+                
+                @shape_layer.mouse_drag_callbacks.append
+                def click_drag(layer, event):
+                    if self.show_bboxes_checkbox.isChecked() and self.viz.selection_mode.isChecked():
+                        # print('mouse down')
+                        dragged = False
+                        yield
 
-                self.viz.update_selected_rect(self.selected_rect)
+                        # on move
+                        while event.type == 'mouse_move':
+                            # print(event.position)
+                            dragged = True
+                            yield
 
-
+                        self.viz.update_last_interacted_shape(shape_layer)
+                        # on release
+                        # if dragged:
+                        #     print('drag end')
+                        # else:
+                        #     print('clicked')
+                        #     print(layer_name)
+                 
 class IdChanger(QDialog):
     def __init__(self, parent=None, viz=None):
         super(IdChanger, self).__init__(parent, viz)
@@ -210,9 +213,7 @@ class TrackletVisualizer:
         self.synchronize = False # synchronize frame slider across viewers
 
         self.unq_filenames = manager.unq_filenames
-        # self.objects = manager.objects
         self.data = manager.data
-        self.selected_rect = None
 
         self.stack_names = np.unique([f.split('_layer')[0] for f in self.unq_filenames])
         all_filenames = []
@@ -221,8 +222,8 @@ class TrackletVisualizer:
         self.all_filenames = sorted([os.path.basename(f) for f in all_filenames])
         self.filenames_t1 = [f for f in self.all_filenames if filter_t1 in f]
         self.filenames_t2 = [f for f in self.all_filenames if filter_t2 in f]
-        # self.filenames_t1 = ["aidv853_date220321_tp1_stack0_sub11_layer076.png"] # TODO: remove after testing
-        # self.filenames_t2 = ["aidv853_date220321_tp2_stack0_sub11_layer076.png"] # TODO: remove after testing
+        # self.filenames_t1 = ["aidv853_date220321_tp1_stack0_sub11_layer076.png", "aidv853_date220321_tp1_stack0_sub11_layer077.png"] # TODO: remove after testing
+        # self.filenames_t2 = ["aidv853_date220321_tp2_stack0_sub11_layer076.png", "aidv853_date220321_tp2_stack0_sub11_layer077.png"] # TODO: remove after testing
 
         if len(self.all_filenames) > 0:
             self.curr_stack = self.all_filenames[0].split('_layer')[0]
@@ -230,19 +231,18 @@ class TrackletVisualizer:
             return
         
         self._prepare_visualizer()
-        self._add_init_bboxes()
 
-        # bind key press 'i' to _change_id()
-        for vm in [self.viewer_model1, self.viewer_model2]:
-            vm.bind_key('i', self._change_id)
+        # # bind key press 'i' to _change_id()
+        # for vm in [self.viewer_model1, self.viewer_model2]:
+        #     vm.bind_key('i', self._change_id_on_dialog)
 
     def _prepare_visualizer(self):
         self.viewer_model1 = ViewerModel(title="model1")
         self.viewer_model2 = ViewerModel(title="model2")
         self.qt_viewer1 = QtViewerWrap(self.root_widget.viewer, self.viewer_model1)
         self.qt_viewer2 = QtViewerWrap(self.root_widget.viewer, self.viewer_model2)
-        self.frame_reader1 = FrameReader(self, self.viewer_model1, self.img_dir, self.filenames_t1)
-        self.frame_reader2 = FrameReader(self, self.viewer_model2, self.img_dir, self.filenames_t2)
+        self.frame_reader1 = FrameReader(self, self.viewer_model1, self.img_dir, self.filenames_t1, 'tp1')
+        self.frame_reader2 = FrameReader(self, self.viewer_model2, self.img_dir, self.filenames_t2, 'tp2')
         
         toolbar_splitter = QSplitter()
         toolbar_splitter.setOrientation(Qt.Horizontal)
@@ -292,93 +292,40 @@ class TrackletVisualizer:
                 self._make_unselectable(vm)
         
     def _make_selectable(self, viewer_model):
-        layer_names = [layer.name for layer in viewer_model.layers if layer.visible and 'bbox' in layer.name]
-        for ln in layer_names:
-            bbox = viewer_model.layers[ln]
+        bboxes_names = [layer.name for layer in viewer_model.layers if 'bbox_' in layer.name]
+        for bn in bboxes_names:
+            bbox = viewer_model.layers[bn]
             bbox.mode = Mode.SELECT
-            # bring bbox to front when selectable
-            bbox.move_to_front()
-            # bbox.selected = False
-            # bbox.events.selected.connect(self._on_bbox_selected)
+            print(f"bbox {bn} is now selectable")
     
     def _make_unselectable(self, viewer_model):
         for layer in viewer_model.layers:
-            if 'bbox' in layer.name:
+            if 'bbox_' in layer.name:
                 layer.mode = Mode.PAN_ZOOM
-
     
-    def _on_bbox_selected(self, event):
-        if event.source.selected:
-            self.selected_rect = event.source
-        else:
-            self.selected_rect = None
+    def update_last_interacted_shape(self, shape):
+        self.last_interacted_shape = shape
 
-    def _add_init_bboxes(self):
-        text_params = {
-                    'string': 'id',
-                    'size': 8,
-                    'color': 'red',
-                    'anchor': 'upper_left',
-                    'translation': [-1, 1],
-                }
-        for frame_num in range(len(self.filenames_t1)):
-            objs_t1 = self.data[self.data['filename'].str.contains(self.filenames_t1[frame_num])]
-            for i, row in objs_t1.iterrows():
-                xmin, ymin, xmax, ymax = row[['xmin', 'ymin', 'xmax', 'ymax']]
-                bbox_rect = [[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]]
-                id = row['id']
-                feats = {
-                    'id': [str(id)],
-                }
-                c = 'red' if str(row['class']) == 'spine' else 'green'
-                text_params['color'] = c
-                self.viewer_model1.add_shapes(bbox_rect,
-                                       features=feats,
-                                       shape_type='rectangle',
-                                       edge_color=c,
-                                       face_color='transparent',
-                                       name=f'bbox_{frame_num}_{id}_frame1',
-                                       visible=False,
-                                       text=text_params,
-                                       )
+    def update_data(self, layers):
+        shapes = [layer for layer in layers if 'bbox_' in layer.name]
+        for s in shapes:
+            old_id = int(s.name.split('bbox_')[1].split('_')[0])
+            name = s.name.split(f'bbox_{old_id}_')[1]
 
-            objs_t2 = self.data[self.data['filename'].str.contains(self.filenames_t2[frame_num])]
-            for i, row in objs_t2.iterrows():
-                xmin, ymin, xmax, ymax = row[['xmin', 'ymin', 'xmax', 'ymax']]
-                bbox_rect = [[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]]
-                id = row['id']
-                feats = {
-                    'id': [str(id)],
-                }
-                c = 'red' if str(row['class']) == 'spine' else 'green'
-                text_params['color'] = c
-                self.viewer_model2.add_shapes(bbox_rect,
-                                       features=feats,
-                                       shape_type='rectangle',
-                                       edge_color=c,
-                                       face_color='transparent',
-                                       name=f'bbox_{frame_num}_{id}_frame2',
-                                       visible=False,
-                                       text=text_params,
-                                       )
-    
-    def update_selected_rect(self, layer_name):
-        map_fr = {
-            '_frame1': self.frame_reader1,
-            '_frame2': self.frame_reader2,
-        }
-        if self.selected_rect is not None and layer_name is not None:
-            frame_selected = self.selected_rect[-7:]
-            frame_to_select = layer_name[-7:]
+            ymin, xmin = s.data[0].min(axis=0)
+            ymax, xmax = s.data[0].max(axis=0)
+            curr_id = int(s.text.values[0])
 
-            map_fr[frame_selected].deselect_rect(self.selected_rect)
-            # map_fr[frame_to_select].select_rect(layer_name)
-            self.selected_rect = layer_name
-        else:
-            self.selected_rect = layer_name
-                
-    def _change_id(self):
-        if self.selected_rect is None:
+            cols = ['xmin', 'ymin', 'xmax', 'ymax', 'id']
+            vals = [xmin, ymin, xmax, ymax, curr_id]
+
+            idx = self.data.loc[(self.data['filename'].str.contains(name)) & (self.data['id'] == old_id)].index[0]
+            for c, v in zip(cols, vals):
+                self.data.loc[idx, c] = v
+            # self.data.loc[idx, 'id'] = curr_id
+            
+    def _change_id_on_dialog(self):
+        if self.last_interacted_shape is None:
             print('No rectangle selected')
             return
         change_id_dialog = IdChanger(viz=self)
@@ -387,8 +334,8 @@ class TrackletVisualizer:
     
     # def update_id_selected_rect(self, new_id):
     #     # find the row to modify in viz.data and set the new id
-    #     frame_num, id = self.selected_rect.split('_')[1:3]
-    #     frame_reader = self.frame_reader1 if self.selected_rect.endswith('_frame1') else self.frame_reader2
+    #     frame_num, id = self.last_interacted_shape.name.split('_')[1:3]
+    #     frame_reader = self.frame_reader1 if self.last_interacted_shape.name.endswith('_frame1') else self.frame_reader2
     #     filename = frame_reader.filenames[frame_num]
 
 

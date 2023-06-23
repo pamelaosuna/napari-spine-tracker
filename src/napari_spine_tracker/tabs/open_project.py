@@ -7,10 +7,10 @@ class OpenProject(QtWidgets.QDialog):
         self.parent = parent
         self.setWindowTitle("Load Existing Project")
 
-        self.filename = ""
-        self.filepath = ""
+        self.filepath = self.parent.filepath_default
         self.img_dir = self.parent.img_dir_default
         self.csv_dir = self.parent.csv_dir_default
+        self.filename = os.path.basename(self.filepath) if self.filepath != "" else ""
 
         self.loaded = False
 
@@ -31,6 +31,8 @@ class OpenProject(QtWidgets.QDialog):
         self.ok_btn = QtWidgets.QPushButton("Load")
         self.ok_btn.setDefault(True)
         self.ok_btn.clicked.connect(self.finalize_open)
+        # bind enter key to ok_btn
+        self.ok_btn.setAutoDefault(True)
 
         main_layout.addWidget(self.filepath_label)
         main_layout.addWidget(self.browse_file_btn)

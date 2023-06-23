@@ -98,6 +98,7 @@ class TrackingCurationWidget(QWidget):
     def set_default_dirs(self):
         self.csv_dir_default = os.path.join(os.getcwd(), "..", "eval_ttrack")
         self.img_dir_default = os.path.join(os.getcwd(), "..", "benzo_pipeline", "A2_registered", "8bit", "subs")
+        self.filepath_default = os.path.join(self.csv_dir_default, "aidv853_date220321_stack0_sub11.csv")
     
     def _update_loaded_state(self, loaded, filepath, img_dir):
         print("Updating project state")
