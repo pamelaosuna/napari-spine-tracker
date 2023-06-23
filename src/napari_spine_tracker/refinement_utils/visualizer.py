@@ -36,14 +36,16 @@ class FrameReader(QWidget):
         self.img_dir = img_dir
         self.filenames = filenames
 
-        self.synchronize = False
-        self.show_bboxes = False
+        # self.synchronize = False
         self.last_interacted_shape = None
 
         self._prepare_reader()
 
+        # bind key press 'i' to _change_id()
+        self.viewer_model.bind_key('i', self.viz._change_id_on_dialog)
+
     def _prepare_reader(self):
-        init_frame_val = 0
+        init_frame_val = 76
 
         self._old_frame = None
         self.frame_num = init_frame_val
@@ -104,8 +106,8 @@ class FrameReader(QWidget):
         max_val_bin = bin(max_val)[2:]
         self.max_val_bin_len = len(max_val_bin)
 
-    def update_synchronize(self):
-        self.synchronize = not(self.synchronize)
+    # def update_synchronize(self):
+    #     self.synchronize = not(self.synchronize)
 
     def _set_contrast_limits(self, values):
         cmin, cmax = values
@@ -117,7 +119,10 @@ class FrameReader(QWidget):
                 self.viewer_model.layers.remove(layer)
 
     def show_bboxes_in_frame(self):
-        if self.show_bboxes_checkbox.isChecked():
+        if not self.show_bboxes_checkbox.isChecked():
+            self.update_data(self.viewer_model.layers)
+            self.remove_bboxes()
+        else:
             objs = self.viz.data[self.viz.data['filename'].str.contains(self.filenames[self.frame_num])]
             text_params = {
                     'string': 'id',
@@ -169,33 +174,41 @@ class FrameReader(QWidget):
                         # else:
                         #     print('clicked')
                         #     print(layer_name)
+    
+
                  
 class IdChanger(QDialog):
-    def __init__(self, parent=None, viz=None):
-        super(IdChanger, self).__init__(parent, viz)
+    def __init__(self, parent:QWidget, shape_layer):
+        super().__init__(parent)
+        self.shape_layer = shape_layer
         self.setWindowTitle("Change ID")
         self.setWindowModality(Qt.ApplicationModal)
         self.resize(200, 100)
-
+        
         self._prepare_dialog()
 
     def _prepare_dialog(self):
-        main_layout = QVBoxLayout()
+        main_layout = QVBoxLayout(self)
         self.text_id = QLineEdit()
         self.text_id.setPlaceholderText("Enter new ID")
         self.text_id.setValidator(QIntValidator())
-        self.text_id.returnPressed.connect(self._change_id)
+        self.text_id.setFocus()
+        self.text_id.returnPressed.connect(self._close_dialog)
         # use Esc to cancel
-        self.text_id.keyPressEvent = lambda event: self.close() if event.key() == Qt.Key_Escape else None
+        # self.text_id.keyPressEvent = lambda event: self.close() if event.key() == Qt.Key_Escape else None
         main_layout.addWidget(self.text_id)
         self.setLayout(main_layout)
-    
-    def _change_id(self):
-        new_id = self.text_id.text()
-        print(f'Changing ID to {new_id}')
-        # self.viz.update_id_selected_rect(new_id)
-        self.close()
 
+    def _close_dialog(self):
+        if self.text_id.text() != '':
+            new_id = self.text_id.text()
+            feats = {'id': [str(new_id)],
+                }
+            self.shape_layer.features = feats
+            print(f'Changing ID to {new_id}')
+            self.close()
+        
+            
 
 class TrackletVisualizer:
     def __init__(self, 
@@ -210,7 +223,7 @@ class TrackletVisualizer:
         self.img_dir = img_dir
         self.manager = manager
         
-        self.synchronize = False # synchronize frame slider across viewers
+        # self.synchronize = False # synchronize frame slider across viewers
 
         self.unq_filenames = manager.unq_filenames
         self.data = manager.data
@@ -231,10 +244,6 @@ class TrackletVisualizer:
             return
         
         self._prepare_visualizer()
-
-        # # bind key press 'i' to _change_id()
-        # for vm in [self.viewer_model1, self.viewer_model2]:
-        #     vm.bind_key('i', self._change_id_on_dialog)
 
     def _prepare_visualizer(self):
         self.viewer_model1 = ViewerModel(title="model1")
@@ -271,9 +280,9 @@ class TrackletVisualizer:
         self.root_widget.layout.addWidget(toolbar_splitter)
     
     def _toggle_synchronize(self, state):
-        self.synchronize = not(self.synchronize)
-        self.frame_reader1.update_synchronize()
-        self.frame_reader2.update_synchronize()
+        # self.synchronize = not(self.synchronize)
+        # self.frame_reader1.update_synchronize()
+        # self.frame_reader2.update_synchronize()
         if state == Qt.Checked:
             self.frame_reader1.frame_slider.valueChanged.connect(self.frame_reader2.set_frame)
             self.frame_reader2.frame_slider.valueChanged.connect(self.frame_reader1.set_frame)
@@ -324,13 +333,13 @@ class TrackletVisualizer:
                 self.data.loc[idx, c] = v
             # self.data.loc[idx, 'id'] = curr_id
             
-    def _change_id_on_dialog(self):
+    def _change_id_on_dialog(self, viewer_model):
         if self.last_interacted_shape is None:
             print('No rectangle selected')
             return
-        change_id_dialog = IdChanger(viz=self)
+        change_id_dialog = IdChanger(self.root_widget, 
+                                     self.last_interacted_shape)
         change_id_dialog.show()
-        # change id in data
     
     # def update_id_selected_rect(self, new_id):
     #     # find the row to modify in viz.data and set the new id
