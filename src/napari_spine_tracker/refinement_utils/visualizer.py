@@ -174,9 +174,7 @@ class FrameReader(QWidget):
                         # else:
                         #     print('clicked')
                         #     print(layer_name)
-    
-
-                 
+        
 class IdChanger(QDialog):
     def __init__(self, parent:QWidget, shape_layer):
         super().__init__(parent)
@@ -207,9 +205,7 @@ class IdChanger(QDialog):
             self.shape_layer.features = feats
             print(f'Changing ID to {new_id}')
             self.close()
-        
             
-
 class TrackletVisualizer:
     def __init__(self, 
                  root_plugin_widget, 
