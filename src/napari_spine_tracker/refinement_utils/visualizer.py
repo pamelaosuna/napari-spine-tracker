@@ -114,13 +114,14 @@ class FrameReader(QWidget):
         self.viewer_model.layers[self.filenames[self.frame_num]].contrast_limits = (cmin, cmax)
 
     def remove_bboxes(self):
-        for layer in self.viewer_model.layers:
-            if 'bbox_' in layer.name:
-                self.viewer_model.layers.remove(layer)
+        # removes all shape layers with name starting with 'bbox_'
+        layers = [layer for layer in self.viewer_model.layers if 'bbox_' in layer.name]
+        for i, layer in enumerate(layers):
+            self.viewer_model.layers.remove(layer.name)
 
     def show_bboxes_in_frame(self):
         if not self.show_bboxes_checkbox.isChecked():
-            self.update_data(self.viewer_model.layers)
+            self.viz.update_data(self.viewer_model.layers)
             self.remove_bboxes()
         else:
             objs = self.viz.data[self.viz.data['filename'].str.contains(self.filenames[self.frame_num])]
@@ -211,8 +212,8 @@ class TrackletVisualizer:
                  root_plugin_widget, 
                  manager, 
                  img_dir,
-                 filter_t1=None,
-                 filter_t2=None
+                 filter_t1='_tp1_', #None,
+                 filter_t2='_tp2_' # None
                  ):
         print("TrackletVisualizer created")
         self.root_widget = root_plugin_widget
@@ -237,6 +238,7 @@ class TrackletVisualizer:
         if len(self.all_filenames) > 0:
             self.curr_stack = self.all_filenames[0].split('_layer')[0]
         else:
+            print("No images found in the selected folder")
             return
         
         self._prepare_visualizer()
@@ -324,7 +326,7 @@ class TrackletVisualizer:
             cols = ['xmin', 'ymin', 'xmax', 'ymax', 'id']
             vals = [xmin, ymin, xmax, ymax, curr_id]
 
-            idx = self.data.loc[(self.data['filename'].str.contains(name)) & (self.data['id'] == old_id)].index[0]
+            idx = self.data[(self.data['filename'].str.contains(name)) & (self.data['id'] == old_id)].index[0]
             for c, v in zip(cols, vals):
                 self.data.loc[idx, c] = v
             # self.data.loc[idx, 'id'] = curr_id

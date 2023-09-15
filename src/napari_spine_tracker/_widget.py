@@ -99,15 +99,15 @@ class TrackingCurationWidget(QWidget):
         new_project.show()
 
     def set_default_dirs(self):
-        self.csv_dir_default = os.path.join(os.getcwd(), 'Spine-Detection-with-CNNs') # , "..", "eval_ttrack")
-        self.img_dir_default = os.path.join(os.getcwd(), 'benzo_pipeline', 'A1_preprocessed', 'subs') #, "..", "benzo_pipeline", "A2_registered", "8bit", "subs")
+        self.csv_dir_default = os.path.join(os.getcwd(), '..', 'eval_ttrack') # , "..", "eval_ttrack")
+        self.img_dir_default = os.path.join(os.getcwd(), '..', 'benzo_pipeline', 'A1_preprocessed', '8bit', 'subs') #, "..", "benzo_pipeline", "A2_registered", "8bit", "subs")
         self.filepath_default = os.path.join(self.csv_dir_default, "aidv853_date220321_stack0_sub11.csv")
     
     def _update_loaded_state(self, loaded, filepath, img_dir):
         print("Updating project state")
         self.data_loaded = loaded
         self.filepath = filepath
-        self.img_dir = img_dir
+        self.img_dir = img_dir + '/' if not img_dir.endswith('/') else img_dir
         self.csv_dir = os.path.dirname(self.filepath)
         self.filename = os.path.basename(self.filepath)
 

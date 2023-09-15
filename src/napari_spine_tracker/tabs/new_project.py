@@ -100,7 +100,7 @@ class NewProject(QtWidgets.QDialog):
                                     )
         if not f:
             return
-        self.img_dir = f
+        self.img_dir = f + '/' if not f.endswith('/') else f
         print(f"You have selected {f}")
         self.img_dir_label.setText(f"Images folder selected: {self.img_dir}")
     
