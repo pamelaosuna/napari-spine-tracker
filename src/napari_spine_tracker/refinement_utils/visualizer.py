@@ -113,7 +113,8 @@ class FrameReader(QWidget):
         self.viewer_model.layers[self.filenames[self.frame_num]].contrast_limits = (cmin, cmax)
 
     def remove_bboxes(self):
-        self.viewer_model.layers.remove('bboxes_' + self.filenames[self.frame_num])
+        if self.show_bboxes_checkbox.isChecked():
+            self.viewer_model.layers.remove('bboxes_' + self.filenames[self._old_frame])
 
     def show_bboxes_in_frame(self):
         if not self.show_bboxes_checkbox.isChecked():
@@ -153,26 +154,63 @@ class FrameReader(QWidget):
         change_id_dialog = IdChanger(self.viz.root_widget, self.viewer_model,
                                      shapes_layer)
         change_id_dialog.show()
+    
+    # def _update_shapes_layer(self):
+
+    def delete_row_from_data(self, idx):
+        self.viz.data.drop(idx, inplace=True)
 
     def _delete_shape(self, event):
         # if no shape is selected, do nothing
         if not self.show_bboxes_checkbox.isChecked():
             return
-        shapes_layer = self.viewer_model.layers['bboxes_' + self.filenames[self.frame_num]]
+        layer_name = 'bboxes_' + self.filenames[self.frame_num]
+        shapes_layer = self.viewer_model.layers[layer_name]
         self.idx_selected_shape = [s for s in shapes_layer.selected_data]
         if len(self.idx_selected_shape) != 1:
             print("Please select one rectangle")
             return
         self.idx_selected_shape = self.idx_selected_shape[0]
-        self.layer_name = shapes_layer.name
         # remove shape from layer
-        shapes_layer.data.pop(self.idx_selected_shape)
-        shapes_layer.selected_data = []
+        # shapes_layer.data.pop(self.idx_selected_shape)
+        # shapes_layer.selected_data = []
         # remove shape from data
         id_to_remove = shapes_layer.features['id'].values[self.idx_selected_shape]
-        self.viz.data = self.viz.data[~((self.viz.data['filename'] == self.filenames[self.frame_num]) & (self.viz.data['id'] == id_to_remove))]
-        # refresh layer
-        shapes_layer.refresh()
+            
+        text_params = {
+            'string': 'id',
+            'size': 8,
+            'color': 'yellow',
+            'anchor': 'upper_left',
+            'translation': [-1, 1],
+        }
+        ymins, xmins = np.array(shapes_layer.data).min(axis=1).T
+        ymaxs, xmaxs = np.array(shapes_layer.data).max(axis=1).T
+        rects = [[[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] for ymin, xmin, ymax, xmax in zip(ymins, xmins, ymaxs, xmaxs)]
+        rects.pop(self.idx_selected_shape)
+        ids = list(shapes_layer.features['id'].values)
+        init_ids = list(shapes_layer.features['init_id'].values)
+        colors = list(shapes_layer.edge_color)
+        ids.pop(self.idx_selected_shape)
+        init_ids.pop(self.idx_selected_shape)
+        colors.pop(self.idx_selected_shape)
+
+        feats = {'id': ids, 'init_id': init_ids}
+        self.viewer_model.layers.remove(layer_name)
+        self.viewer_model.add_shapes(rects,
+                    shape_type='rectangle',
+                    edge_color=colors,
+                    face_color='transparent',
+                    name=layer_name,
+                    visible=True,
+                    text=text_params,
+                    features=feats,
+                    )
+        self.viewer_model.layers[layer_name].mode = Mode.SELECT
+
+        idx = self.viz.data[((self.viz.data['filename'].str.contains(self.filenames[self.frame_num])) & (self.viz.data['id'] == int(id_to_remove)))].index
+        print(f'deleting row {idx} from data')
+        self.delete_row_from_data(idx)
 
 class IdChanger(QDialog):
     def __init__(self, parent:QWidget, viewer_model, shapes_layer):
