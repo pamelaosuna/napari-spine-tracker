@@ -4,8 +4,10 @@ import pandas as pd
 
 from qtpy.QtWidgets import (
     QPushButton,
-    QHBoxLayout
+    QHBoxLayout,
+    QMessageBox
 )
+from qtpy import QtWidgets
 from qtpy.QtCore import Qt
 
 class TrackletManager:
@@ -23,12 +25,23 @@ class TrackletManager:
     def _create_initial_widgets(self):
         save_btn = QPushButton("Save")
         save_btn.clicked.connect(self.save)
+        help_btn = QPushButton("Help")
+        help_btn.clicked.connect(self.help)
 
-        save_btn.setFixedHeight(50)
-        save_btn.setFixedWidth(200)
-        save_btn.setStyleSheet("font-size: 20px;")
-        self.root_widget.layout.addWidget(save_btn, alignment=Qt.AlignCenter)
-        self.root_widget.layout.addSpacing(20)
+        h_layout = QHBoxLayout()
+        h_layout.addStretch()
+
+        for i, btn in enumerate([save_btn, help_btn]):
+            btn.setFixedHeight(50)
+            btn.setFixedWidth(200)
+            btn.setStyleSheet('font-size: 20px;')
+            h_layout.addWidget(btn, alignment=Qt.AlignCenter)
+            if i != len([save_btn, help_btn]) - 1:
+                h_layout.addSpacing(10)
+
+        h_layout.addStretch()
+        self.root_widget.layout.addLayout(h_layout)
+        # self.root_widget.layout.addSpacing(10)
     
     def _load_tracklets(self, df_tracklets):
         layers = [int(f.split('_layer')[1].split('.')[0]) for f in df_tracklets['filename'].values]
@@ -43,12 +56,26 @@ class TrackletManager:
         # self.data = self.data[self.data['filename'].str.contains('layer076') | self.data['filename'].str.contains('layer077')] # TODO: remove after testing
         self._load_tracklets(self.data)
     
-    def save(self, output_name="", *args):
+    def save(self, output_name=""):
         df_tracklets = self.data
         if not output_name:
             output_name = self.filepath
         df_tracklets.to_csv(output_name, index=False)
         print(f"Saved tracklets to {output_name}")
+    
+    def help(self):
+        # open help dialog
+        dialog = QMessageBox()
+        dialog.setWindowTitle("Help")
+        dialog.setFixedWidth(500)
+        dialog.setFixedHeight(500)
+
+        help_text = " To change ID of 2D detection, choose selection mode, select the shape and press 'i'\n" + \
+                    " To remove 2D detection, choose selection mode, select the shape and press 'backspace'\n" + \
+                    " To move between frames, click on the visualizer and then use arrows left and right\n" + \
+                    " To add a new detection, ... "
+        dialog.setText(help_text)
+        dialog.exec_()
     
     def add_new_tracklet(self, row_to_add):
         row_tracklet = pd.DataFrame(row_to_add, columns=self.data.columns)

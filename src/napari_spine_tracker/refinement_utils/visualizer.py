@@ -1,7 +1,7 @@
 import os, glob
 import numpy as np
 from skimage import io
-from qtpy.QtWidgets import QSplitter, QVBoxLayout
+from qtpy.QtWidgets import QSplitter, QVBoxLayout, QHBoxLayout
 from qtpy.QtWidgets import QSplitter, QTabWidget
 from qtpy.QtCore import Qt, QEvent, QObject, QItemSelection
 from qtpy.QtWidgets import (
@@ -42,15 +42,29 @@ class FrameReader(QWidget):
         # self.synchronize = False
         self._prepare_reader()
 
+        action_manager.unbind_shortcut('napari:activate_add_line_mode')
+        action_manager.unbind_shortcut('napari:increment_dims_right')
+        action_manager.unbind_shortcut('napari:increment_dims_left')
+        action_manager.unbind_shortcut('napari:delete_selected_points')
+
         # # bind key press 'i' to _change_id()
         self.viewer_model.bind_key('i', self._change_id_on_dialog)
-        self.viewer_model.bind_key('d', self._delete_shape)
+        self.viewer_model.bind_key('Backspace', self._delete_shape)
+        self.viewer_model.bind_key('Delete', self._delete_shape)
 
-        @self.viewer_model.bind_key('j', overwrite=True)
+        @self.viewer_model.bind_key('Left', overwrite=True)
         def _decrease_frame(event):
             self._decrease_frame(event)
         
-        @self.viewer_model.bind_key('k', overwrite=True)
+        # action_manager.register_action(
+        #     name='napari:_increase_frame',
+        #     command=self._increase_frame,
+        #     description='Go to next frame',
+        #     keymapprovider=ViewerModel,
+        # )
+        # action_manager.bind_shortcut('napari:_increase_frame', 'Right')
+
+        @self.viewer_model.bind_key('Right', overwrite=True)
         def _increase_frame(event):
             self._increase_frame(event)
 
@@ -69,7 +83,7 @@ class FrameReader(QWidget):
         self.frame_slider.setValue(init_frame_val)
         self.frame_slider.valueChanged.connect(self.set_frame)
 
-        self.frame_text = QLabel(f'Frame number: {self.frame_num}')
+        self.frame_text = QLabel(f'Frame number: {self.frame_num+1} | Total frames: {len(self.filenames)}')
         self.frame_text.setAlignment(Qt.AlignCenter)
         self.fname_text = QLabel(self.filenames[self.frame_num])
         self.fname_text.setAlignment(Qt.AlignLeft)
@@ -97,8 +111,8 @@ class FrameReader(QWidget):
         self.viewer_model.layers.remove(self.filenames[self.frame_num])
         self.viewer_model.add_image(self.imgs[frame], name=self.filenames[frame])
         self.frame_slider.setValue(frame)
-        self.frame_text.setText(f'Frame number: {frame}')
-        self.fname_text.setText(self.filenames[frame])
+        self.frame_text.setText(f'Frame number: {frame+1} | Total frames: {len(self.filenames)}')
+        # self.fname_text.setText(self.filenames[frame])
         self.frame_num = frame
         self.remove_bboxes()
         self.show_bboxes_in_frame()
@@ -186,7 +200,7 @@ class FrameReader(QWidget):
         shapes_layer = self.viewer_model.layers[layer_name]
         self.idx_selected_shape = [s for s in shapes_layer.selected_data]
         if len(self.idx_selected_shape) != 1:
-            print("Please select one rectangle")
+            print("No rectangle selected")
             return
         self.idx_selected_shape = self.idx_selected_shape[0]
         # remove shape from layer
@@ -370,8 +384,15 @@ class TrackletVisualizer:
 
         self.root_widget.layout.addWidget(viewer_splitter)
         self.root_widget.layout.setSpacing(0)
-        self.root_widget.layout.addWidget(self.sync_checkbox, alignment=Qt.AlignCenter)
-        self.root_widget.layout.addWidget(self.selection_mode, alignment=Qt.AlignCenter)
+
+        h_layout = QHBoxLayout()
+        h_layout.addStretch(1)
+        for w in [self.sync_checkbox, self.selection_mode]:
+            h_layout.addWidget(w, alignment=Qt.AlignCenter)
+        h_layout.addStretch(1)
+        self.root_widget.layout.addLayout(h_layout)
+        # self.root_widget.layout.addWidget(self.sync_checkbox, alignment=Qt.AlignCenter)
+        # self.root_widget.layout.addWidget(self.selection_mode, alignment=Qt.AlignCenter)
         self.root_widget.layout.addWidget(toolbar_splitter)
     
     def _toggle_synchronize(self, state):
