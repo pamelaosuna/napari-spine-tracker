@@ -2,8 +2,8 @@ import os, glob
 import numpy as np
 from skimage import io
 from qtpy.QtWidgets import QSplitter, QVBoxLayout, QHBoxLayout
-from qtpy.QtWidgets import QSplitter, QTabWidget
-from qtpy.QtCore import Qt, QEvent, QObject, QItemSelection
+from qtpy.QtWidgets import QSplitter
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QPushButton,
     QSlider,
@@ -14,7 +14,7 @@ from qtpy.QtWidgets import (
     QLineEdit,
     QMessageBox,
     )
-from qtpy.QtGui import QIcon, QIntValidator
+from qtpy.QtGui import QIntValidator
 
 
 from napari.layers import Image, Shapes
@@ -31,7 +31,7 @@ class FrameReader(QWidget):
     Dummy widget showcasing how to place additional widgets to the right
     of the additional viewers. # TODO: rewrite
     """
-    def __init__(self, viz, viewer_model, img_dir, filenames, tp_name):
+    def __init__(self, viz, viewer_model: ViewerModel, img_dir: str, filenames: list, tp_name: str):
         super().__init__()
         self.tp_name = tp_name
         self.viz = viz
@@ -39,15 +39,21 @@ class FrameReader(QWidget):
         self.img_dir = img_dir
         self.filenames = filenames
 
-        # self.synchronize = False
         self._prepare_reader()
 
-        action_manager.unbind_shortcut('napari:activate_add_line_mode')
-        action_manager.unbind_shortcut('napari:increment_dims_right')
-        action_manager.unbind_shortcut('napari:increment_dims_left')
-        action_manager.unbind_shortcut('napari:delete_selected_points')
+        shortcuts_to_unbind= ['napari:activate_add_line_mode',
+                                'napari:increment_dims_right',
+                                'napari:increment_dims_left',
+                                'napari:delete_selected_points',
+                                'napari:activate_add_rectangle_mode',
+                                'napari:activate_add_ellipse_mode',
+                                'napari:activate_add_path_mode',
+                                'napari:activate_add_polygon_mode',
+        ]
+        for s in shortcuts_to_unbind:
+            action_manager.unbind_shortcut(s)
 
-        # # bind key press 'i' to _change_id()
+        # key bindings
         self.viewer_model.bind_key('i', self._change_id_on_dialog)
         self.viewer_model.bind_key('Backspace', self._delete_shape)
         self.viewer_model.bind_key('Delete', self._delete_shape)
@@ -67,6 +73,23 @@ class FrameReader(QWidget):
         @self.viewer_model.bind_key('Right', overwrite=True)
         def _increase_frame(event):
             self._increase_frame(event)
+
+        @self.viewer_model.bind_key('R', overwrite=True)
+        def _add_bbox(event):
+            self._add_bbox(event)
+
+        # callbacks
+        
+        # bbox data
+        self.extract_data_to_draw()
+        self.shapes_layer = None
+
+        # grasp event mouse release, if mode==add_rectangle and shape is selected, pass mode to select
+        # @self.viewer_model.mouse_drag_callbacks.append
+        # def _mouse_drag_callback(viewer, event):
+        #     print(event.type)
+        #     if event.type=='mouse_release' and self.shapes_layer is not None and self.shapes_layer.mode == Mode.ADD_RECTANGLE:
+        #         self.shapes_layer.mode = Mode.SELECT
 
     def _prepare_reader(self):
         init_frame_val = 0
@@ -115,6 +138,7 @@ class FrameReader(QWidget):
         # self.fname_text.setText(self.filenames[frame])
         self.frame_num = frame
         self.remove_bboxes()
+        self.extract_data_to_draw()
         self.show_bboxes_in_frame()
         self._set_contrast_limits(self.contrast_range_slider.value())
 
@@ -129,55 +153,58 @@ class FrameReader(QWidget):
         max_val = np.max(imgs)
         max_val_bin = bin(max_val)[2:]
         self.max_val_bin_len = len(max_val_bin)
-
-    # def update_synchronize(self):
-    #     self.synchronize = not(self.synchronize)
-
-    def _set_contrast_limits(self, values):
-        cmin, cmax = values
-        self.viewer_model.layers[self.filenames[self.frame_num]].contrast_limits = (cmin, cmax)
-
-    def remove_bboxes(self):
-        layers_to_remove = [layer for layer in self.viewer_model.layers if 'bboxes_' in layer.name]
-        for layer_name in layers_to_remove:
-            self.viewer_model.layers.remove(layer_name)
-
-    def show_bboxes_in_frame(self):
-        if not self.show_bboxes_checkbox.isChecked():
-            self.viz.update_data(self.viewer_model.layers)
-            self.remove_bboxes()
-        else:
-            objs = self.viz.data[self.viz.data['filename'].str.contains(self.filenames[self.frame_num])]
-            if len(objs) == 0:
-                return
-            text_params = {
+    
+    def extract_data_to_draw(self):
+        self.objs = self.viz.data[self.viz.data['filename'].str.contains(self.filenames[self.frame_num])]
+        self.ids = [str(id) for id in self.objs['id'].values]
+        self.coords = [
+                [[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] 
+                      for ymin, xmin, ymax, xmax in self.objs[['ymin', 'xmin', 'ymax', 'xmax']].values
+                      ]
+        self.feats = {'id': self.ids, 'init_id': self.ids}
+        self.text_params = {
                     'string': 'id',
                     'size': 8,
                     'color': 'yellow',
                     'anchor': 'upper_left',
                     'translation': [-1, 1],
                 }
-            shapes = [[[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] for ymin, xmin, ymax, xmax in objs[['ymin', 'xmin', 'ymax', 'xmax']].values] 
-            ids = [str(id) for id in objs['id'].values]
-            # if the intersection of 
+
+    def _set_contrast_limits(self, values):
+        cmin, cmax = values
+        self.viewer_model.layers[self.filenames[self.frame_num]].contrast_limits = (cmin, cmax)
+
+    def remove_bboxes(self):
+        if self.shapes_layer is not None:
+            self.viewer_model.layers.remove(self.shapes_layer)
+            self.shapes_layer = None
+
+    def show_bboxes_in_frame(self):
+        if not self.show_bboxes_checkbox.isChecked():
+            self.viz.update_data(self.viewer_model.layers)
+            self.remove_bboxes()
+        else:
+            if len(self.objs) == 0:
+                print('No objects in this frame')
+                return
+            
             filenames_per_id = [np.unique([os.path.basename(f) for f in self.viz.data[self.viz.data['id']==int(curr_id)]['filename'].values])  
-                              for curr_id in ids]
+                              for curr_id in self.ids]
             id_in_both_tps = [list(np.unique([f.split('tp')[1][0] for f in fid])) for fid in filenames_per_id]
             colors = ['yellow' if len(id) == 2 else 'green' for id in id_in_both_tps]
-            feats = {'id': ids, 'init_id': ids}
-            self.viewer_model.add_shapes(shapes,
+            self.viewer_model.add_shapes(self.coords,
                                         shape_type='rectangle',
                                         edge_color=np.array(colors),
                                         face_color='transparent',
                                         name='bboxes_' + self.filenames[self.frame_num],
                                         visible=True,
-                                        text=text_params,
-                                        features=feats,
+                                        text=self.text_params,
+                                        features=self.feats,
                                         )
-            shapes_layer = self.viewer_model.layers['bboxes_' + self.filenames[self.frame_num]]
-            
+            self.shapes_layer = self.viewer_model.layers['bboxes_' + self.filenames[self.frame_num]]
+
             if self.viz.selection_mode.isChecked():
-                shapes_layer.mode = Mode.SELECT
+                self.shapes_layer.mode = Mode.SELECT
                 
     def _change_id_on_dialog(self, event):
         if not self.show_bboxes_checkbox.isChecked():
@@ -187,10 +214,51 @@ class FrameReader(QWidget):
                                      shapes_layer)
         change_id_dialog.show()
     
-    # def _update_shapes_layer(self):
-
     def delete_row_from_data(self, idx):
         self.viz.data.drop(idx, inplace=True)
+    
+    def _add_bbox(self, event):
+        if not self.show_bboxes_checkbox.isChecked():
+            self.show_bboxes_checkbox.setChecked(True)
+        if not self.viz.selection_mode.isChecked():
+            self.viz.selection_mode.setChecked(True)
+        
+        # activate add rectangle mode
+        layer_name = 'bboxes_' + self.filenames[self.frame_num]
+        if self.shapes_layer is None:
+            self.shapes_layer = self.viewer_model.add_shapes(name=layer_name,
+                                                             shape_type='rectangle',
+                                                             features={'id':[], 'init_id':[]},
+                                                             edge_color='red',
+                                                             face_color='transparent',
+                                                             visible=True,
+                                                             text=self.text_params)
+            
+            # add callback to change mode to select when rectangle is drawn
+            # @self.shapes_layer.mouse_drag_callbacks.append
+            # def _shape_was_added(viewer, event):
+            #     print(event.type)
+            #     if event.type == 'mouse_release':
+            #         self.shapes_layer.mode = Mode.SELECT
+
+        self.shapes_layer.mode = Mode.ADD_RECTANGLE
+        # get notified when _finish_drawing() is called
+        # TODO
+
+        # self.coords = [[256-10, 256-10], [256-10, 256+10], [256+10, 256+10], [256+10, 256-10]]
+        # self.feats = {'id': ['-1'], 'init_id': ['-1']}
+        # self.viewer_model.add_shapes(self.coords,
+        #                             shape_type='rectangle',
+        #                             edge_color=np.array(['red']),
+        #                             face_color='transparent',
+        #                             name=layer_name,
+        #                             visible=True,
+        #                             text=self.text_params,
+        #                             features=self.feats)
+
+        # self.shapes_layer = self.viewer_model.layers[layer_name]
+        # self.shapes_layer.mode = Mode.SELECT
+        
 
     def _delete_shape(self, event):
         # if no shape is selected, do nothing
@@ -208,14 +276,7 @@ class FrameReader(QWidget):
         # shapes_layer.selected_data = []
         # remove shape from data
         id_to_remove = shapes_layer.features['id'].values[self.idx_selected_shape]
-            
-        text_params = {
-            'string': 'id',
-            'size': 8,
-            'color': 'yellow',
-            'anchor': 'upper_left',
-            'translation': [-1, 1],
-        }
+        
         ymins, xmins = np.array(shapes_layer.data).min(axis=1).T
         ymaxs, xmaxs = np.array(shapes_layer.data).max(axis=1).T
         rects = [[[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] for ymin, xmin, ymax, xmax in zip(ymins, xmins, ymaxs, xmaxs)]
@@ -236,7 +297,7 @@ class FrameReader(QWidget):
                         face_color='transparent',
                         name=layer_name,
                         visible=True,
-                        text=text_params,
+                        text=self.text_params,
                         features=feats,
                         )
             self.viewer_model.layers[layer_name].mode = Mode.SELECT
@@ -247,9 +308,7 @@ class FrameReader(QWidget):
     
     def _decrease_frame(self, event):
         if self.frame_num > 0:
-            # change value of frame slider
             self.frame_slider.setValue(self.frame_num - 1)
-            # self.set_frame(self.frame_num - 1)
     
     def _increase_frame(self, event):
         if self.frame_num < len(self.filenames) - 1:
@@ -289,15 +348,14 @@ class IdChanger(QDialog):
     def _close_dialog(self):
         if self.text_id.text() != '':
             new_id = self.text_id.text()
+            if new_id in self.viewer_model.layers[self.layer_name].features['id'].values:
+                msg = QMessageBox()
+                msg.setIcon(QMessageBox.Warning)
+                msg.setText("ID already exists")
+                msg.exec_()
+                return
             shapes_layer = self.viewer_model.layers[self.layer_name]
             
-            text_params = {
-                'string': 'id',
-                'size': 8,
-                'color': 'yellow',
-                'anchor': 'upper_left',
-                'translation': [-1, 1],
-            }
             ymins, xmins = np.array(shapes_layer.data).min(axis=1).T
             ymaxs, xmaxs = np.array(shapes_layer.data).max(axis=1).T
             rects = [[[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] for ymin, xmin, ymax, xmax in zip(ymins, xmins, ymaxs, xmaxs)]
@@ -313,7 +371,7 @@ class IdChanger(QDialog):
                         face_color='transparent',
                         name=self.layer_name,
                         visible=True,
-                        text=text_params,
+                        text=self.text_params,
                         features=feats,
                         )
             self.viewer_model.layers[self.layer_name].mode = Mode.SELECT
@@ -333,8 +391,6 @@ class TrackletVisualizer:
         self.img_dir = img_dir
         self.manager = manager
         
-        # self.synchronize = False # synchronize frame slider across viewers
-
         self.unq_filenames = manager.unq_filenames
         self.data = manager.data
 
@@ -391,14 +447,9 @@ class TrackletVisualizer:
             h_layout.addWidget(w, alignment=Qt.AlignCenter)
         h_layout.addStretch(1)
         self.root_widget.layout.addLayout(h_layout)
-        # self.root_widget.layout.addWidget(self.sync_checkbox, alignment=Qt.AlignCenter)
-        # self.root_widget.layout.addWidget(self.selection_mode, alignment=Qt.AlignCenter)
         self.root_widget.layout.addWidget(toolbar_splitter)
     
     def _toggle_synchronize(self, state):
-        # self.synchronize = not(self.synchronize)
-        # self.frame_reader1.update_synchronize()
-        # self.frame_reader2.update_synchronize()
         if state == Qt.Checked:
             self.frame_reader1.frame_slider.valueChanged.connect(self.frame_reader2.set_frame)
             self.frame_reader2.frame_slider.valueChanged.connect(self.frame_reader1.set_frame)
@@ -418,7 +469,6 @@ class TrackletVisualizer:
 
     def update_data(self, layers):
         all_shapes_layer = [layer for layer in layers if 'bboxes_' in layer.name]
-
         for shapes_layer in all_shapes_layer:
             ids = shapes_layer.features['id'].values.astype(int)
             ymins, xmins = np.array(shapes_layer.data).min(axis=1).T

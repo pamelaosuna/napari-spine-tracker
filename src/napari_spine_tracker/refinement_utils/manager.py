@@ -70,10 +70,10 @@ class TrackletManager:
         dialog.setFixedWidth(500)
         dialog.setFixedHeight(500)
 
-        help_text = " To change ID of 2D detection, choose selection mode, select the shape and press 'i'\n" + \
-                    " To remove 2D detection, choose selection mode, select the shape and press 'backspace'\n" + \
-                    " To move between frames, click on the visualizer and then use arrows left and right\n" + \
-                    " To add a new detection, ... "
+        help_text = " - To change ID of 2D detection: choose selection mode, select the shape and press 'i'\n" + \
+                    " - To remove 2D detection: choose selection mode, select the shape and press 'Backspace'\n" + \
+                    " - To move between frames: click on the visualizer and then use arrows 'Left' and 'Right'\n" + \
+                    " - To add a new detection: choose selection mode, press 'r' and draw a new shape\n" + \
         dialog.setText(help_text)
         dialog.exec_()
     

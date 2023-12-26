@@ -83,7 +83,7 @@ class TrackingCurationWidget(QWidget):
     def _open_project(self):
         self.parent().setFloating(True)
         self.parent().showMaximized()
-        print("Open Project")
+        # print("Open Project")
         open_project = OpenProject(self)
         open_project.show()
     
@@ -108,7 +108,7 @@ class TrackingCurationWidget(QWidget):
         self.filepath_default = os.path.join(self.csv_dir_default, "aidv853_date220321_stack0_sub12.csv")
     
     def _update_loaded_state(self, loaded, filepath, img_dir):
-        print("Updating project state")
+        # print("Updating project state")
         self.data_loaded = loaded
         self.filepath = filepath
         self.img_dir = img_dir + '/' if not img_dir.endswith('/') else img_dir
@@ -119,7 +119,7 @@ class TrackingCurationWidget(QWidget):
             self._create_curation_widgets()
     
     def _create_curation_widgets(self):
-        print("Creating curation widgets")
+        # print("Creating curation widgets")
         # remove btn_new_project, btn_open_project, btn_help
         for _ in range(3):
             self.layout.removeWidget(self.layout.itemAt(0).widget())

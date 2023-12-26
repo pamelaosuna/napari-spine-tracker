@@ -72,7 +72,6 @@ class OpenProject(QtWidgets.QDialog):
         self.img_dir_label.setText(f"Images folder selected: {self.img_dir}")
     
     def finalize_open(self):
-        print("Finalizing open")
         if self.filepath == "":
             msg = QtWidgets.QMessageBox()
             msg.setIcon(QtWidgets.QMessageBox.Critical)
