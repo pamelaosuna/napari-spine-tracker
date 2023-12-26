@@ -11,7 +11,7 @@ from qtpy.QtCore import Qt
 class TrackletManager:
     def __init__(self,
                  root_widget):
-        print("TrackletManager created")
+        # print("TrackletManager created")
         self.filepath = None
         self.root_widget = root_widget
         self.data = None
@@ -32,11 +32,10 @@ class TrackletManager:
     
     def _load_tracklets(self, df_tracklets):
         layers = [int(f.split('_layer')[1].split('.')[0]) for f in df_tracklets['filename'].values]
-        df_tracklets['layer'] = layers
         df_tracklets['filename'] = [os.path.basename(f) for f in df_tracklets['filename'].values]
         self.unq_filenames = np.unique(df_tracklets['filename'].values)
         self.n_frames = len(np.unique(self.unq_filenames))
-        print(df_tracklets.shape)
+        # print(df_tracklets.shape)
 
     def load_tracklets_from_csv(self, datafile):
         self.filepath = datafile

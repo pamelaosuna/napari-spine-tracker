@@ -79,7 +79,7 @@ class TrackingCurationWidget(QWidget):
             self.layout.addWidget(btn, alignment=Qt.AlignCenter)
         
         self.setLayout(self.layout)
-
+        
     def _open_project(self):
         self.parent().setFloating(True)
         self.parent().showMaximized()
@@ -89,7 +89,11 @@ class TrackingCurationWidget(QWidget):
     
     def _help(self):
         print("Help")
-        # TODO
+        
+        # to change ID of 2D detection, select it and press 'i'
+        # to remove 2D detection, select it and press 'd'
+        # to move between frames, use arrows left and right for the left visualizer
+        # to move between frames, use arrows up and down for the right visualizer
     
     def _new_project(self):
         print("New Project")
@@ -100,8 +104,8 @@ class TrackingCurationWidget(QWidget):
 
     def set_default_dirs(self):
         self.csv_dir_default = os.path.join(os.getcwd(), '..', 'eval_ttrack') # , "..", "eval_ttrack")
-        self.img_dir_default = os.path.join(os.getcwd(), '..', 'benzo_pipeline', 'A1_preprocessed', '8bit', 'subs') #, "..", "benzo_pipeline", "A2_registered", "8bit", "subs")
-        self.filepath_default = os.path.join(self.csv_dir_default, "aidv853_date220321_stack0_sub11.csv")
+        self.img_dir_default = os.path.join(os.getcwd(), '..', 'subs') #, "..", "benzo_pipeline", "A1_preprocessed", "8bit", "subs")
+        self.filepath_default = os.path.join(self.csv_dir_default, "aidv853_date220321_stack0_sub12.csv")
     
     def _update_loaded_state(self, loaded, filepath, img_dir):
         print("Updating project state")

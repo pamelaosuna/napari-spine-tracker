@@ -22,6 +22,9 @@ from napari.layers.shapes._shapes_constants import Mode
 from napari.components.viewer_model import ViewerModel
 from napari_spine_tracker.tabs.multi_view  import  QtViewerWrap
 from superqt import QRangeSlider
+from napari.utils.action_manager import action_manager
+
+import pandas as pd
 
 class FrameReader(QWidget):
     """
@@ -39,12 +42,20 @@ class FrameReader(QWidget):
         # self.synchronize = False
         self._prepare_reader()
 
-        # bind key press 'i' to _change_id()
+        # # bind key press 'i' to _change_id()
         self.viewer_model.bind_key('i', self._change_id_on_dialog)
         self.viewer_model.bind_key('d', self._delete_shape)
 
+        @self.viewer_model.bind_key('j', overwrite=True)
+        def _decrease_frame(event):
+            self._decrease_frame(event)
+        
+        @self.viewer_model.bind_key('k', overwrite=True)
+        def _increase_frame(event):
+            self._increase_frame(event)
+
     def _prepare_reader(self):
-        init_frame_val = 76
+        init_frame_val = 0
 
         self._old_frame = None
         self.frame_num = init_frame_val
@@ -94,7 +105,7 @@ class FrameReader(QWidget):
         self._set_contrast_limits(self.contrast_range_slider.value())
 
     def _load_images(self):
-        print(f'Adding {len(self.filenames)} images to viewer')
+        # print(f'Adding {len(self.filenames)} images to viewer')
         imgs = []
         for fn in self.filenames:
             img = io.imread(os.path.join(self.img_dir, fn))
@@ -113,8 +124,9 @@ class FrameReader(QWidget):
         self.viewer_model.layers[self.filenames[self.frame_num]].contrast_limits = (cmin, cmax)
 
     def remove_bboxes(self):
-        if self.show_bboxes_checkbox.isChecked():
-            self.viewer_model.layers.remove('bboxes_' + self.filenames[self._old_frame])
+        layers_to_remove = [layer for layer in self.viewer_model.layers if 'bboxes_' in layer.name]
+        for layer_name in layers_to_remove:
+            self.viewer_model.layers.remove(layer_name)
 
     def show_bboxes_in_frame(self):
         if not self.show_bboxes_checkbox.isChecked():
@@ -122,6 +134,8 @@ class FrameReader(QWidget):
             self.remove_bboxes()
         else:
             objs = self.viz.data[self.viz.data['filename'].str.contains(self.filenames[self.frame_num])]
+            if len(objs) == 0:
+                return
             text_params = {
                     'string': 'id',
                     'size': 8,
@@ -131,11 +145,15 @@ class FrameReader(QWidget):
                 }
             shapes = [[[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] for ymin, xmin, ymax, xmax in objs[['ymin', 'xmin', 'ymax', 'xmax']].values] 
             ids = [str(id) for id in objs['id'].values]
-            colors = ['yellow' if c == 'spine' else 'green' for c in objs['class'].values]
+            # if the intersection of 
+            filenames_per_id = [np.unique([os.path.basename(f) for f in self.viz.data[self.viz.data['id']==int(curr_id)]['filename'].values])  
+                              for curr_id in ids]
+            id_in_both_tps = [list(np.unique([f.split('tp')[1][0] for f in fid])) for fid in filenames_per_id]
+            colors = ['yellow' if len(id) == 2 else 'green' for id in id_in_both_tps]
             feats = {'id': ids, 'init_id': ids}
             self.viewer_model.add_shapes(shapes,
                                         shape_type='rectangle',
-                                        edge_color=colors,
+                                        edge_color=np.array(colors),
                                         face_color='transparent',
                                         name='bboxes_' + self.filenames[self.frame_num],
                                         visible=True,
@@ -197,21 +215,32 @@ class FrameReader(QWidget):
 
         feats = {'id': ids, 'init_id': init_ids}
         self.viewer_model.layers.remove(layer_name)
-        self.viewer_model.add_shapes(rects,
-                    shape_type='rectangle',
-                    edge_color=colors,
-                    face_color='transparent',
-                    name=layer_name,
-                    visible=True,
-                    text=text_params,
-                    features=feats,
-                    )
-        self.viewer_model.layers[layer_name].mode = Mode.SELECT
+        if len(ids) > 0:
+            self.viewer_model.add_shapes(rects,
+                        shape_type='rectangle',
+                        edge_color=colors,
+                        face_color='transparent',
+                        name=layer_name,
+                        visible=True,
+                        text=text_params,
+                        features=feats,
+                        )
+            self.viewer_model.layers[layer_name].mode = Mode.SELECT
 
         idx = self.viz.data[((self.viz.data['filename'].str.contains(self.filenames[self.frame_num])) & (self.viz.data['id'] == int(id_to_remove)))].index
-        print(f'deleting row {idx} from data')
+        # print(f'deleting row {idx} from data')
         self.delete_row_from_data(idx)
-
+    
+    def _decrease_frame(self, event):
+        if self.frame_num > 0:
+            # change value of frame slider
+            self.frame_slider.setValue(self.frame_num - 1)
+            # self.set_frame(self.frame_num - 1)
+    
+    def _increase_frame(self, event):
+        if self.frame_num < len(self.filenames) - 1:
+            self.frame_slider.setValue(self.frame_num + 1)
+            
 class IdChanger(QDialog):
     def __init__(self, parent:QWidget, viewer_model, shapes_layer):
         super().__init__(parent)
@@ -274,7 +303,7 @@ class IdChanger(QDialog):
                         features=feats,
                         )
             self.viewer_model.layers[self.layer_name].mode = Mode.SELECT
-            print(f'Changing ID to {new_id}')
+            # print(f'Changing ID to {new_id}')
             self.close()
             
 class TrackletVisualizer:
@@ -285,7 +314,7 @@ class TrackletVisualizer:
                  filter_t1='_tp1_', #None,
                  filter_t2='_tp2_' # None
                  ):
-        print("TrackletVisualizer created")
+        # print("TrackletVisualizer created")
         self.root_widget = root_plugin_widget
         self.img_dir = img_dir
         self.manager = manager
@@ -358,7 +387,8 @@ class TrackletVisualizer:
     
     def _toggle_selection_mode(self, state):
         for vm, fr in zip([self.viewer_model1, self.viewer_model2], [self.frame_reader1, self.frame_reader2]):
-            if fr.show_bboxes_checkbox.isChecked():
+            shapes_layer_name = [layer.name for layer in vm.layers if 'bboxes_' in layer.name]
+            if fr.show_bboxes_checkbox.isChecked() and len(shapes_layer_name) > 0:
                 shapes_layer_name = 'bboxes_' + fr.filenames[fr.frame_num]
                 if state == Qt.Checked:            
                     vm.layers[shapes_layer_name].mode = Mode.SELECT
@@ -369,21 +399,44 @@ class TrackletVisualizer:
         all_shapes_layer = [layer for layer in layers if 'bboxes_' in layer.name]
 
         for shapes_layer in all_shapes_layer:
-            # # remove rows where id is not anymore in the layer
-            # ids_to_remove = [old_id for old_id in ]
-            old_ids = shapes_layer.features['init_id'].values.astype(int)
-            curr_ids = shapes_layer.features['id'].values.astype(int)
-
+            ids = shapes_layer.features['id'].values.astype(int)
             ymins, xmins = np.array(shapes_layer.data).min(axis=1).T
             ymaxs, xmaxs = np.array(shapes_layer.data).max(axis=1).T
+            filenames = [shapes_layer.name.split('bboxes_')[1]] * len(ids)
+            score = [1] * len(ids)
+            classes = ['spine'] * len(ids)
+            width = [512] * len(ids)
+            height = [512] * len(ids)
 
-            cols = ['xmin', 'ymin', 'xmax', 'ymax', 'id']
-            vals = [xmins, ymins, xmaxs, ymaxs, curr_ids]
+            cols = ['xmin', 'ymin', 'xmax', 'ymax', 
+                    'id', 'filename', 'score', 'class',
+                    'width', 'height']
+            
+            rows2drop = self.data[self.data['filename'].str.contains(filenames[0])]
+            self.data.drop(rows2drop.index, inplace=True)
 
-            idxs = self.data[(self.data['filename'].str.contains(shapes_layer.name.split('bboxes_')[1])) & (self.data['id'].isin(old_ids))].index
-            print(f'Updating {len(idxs)} rows in data')
-            for c, v in zip(cols, vals):
-                self.data.loc[idxs, c] = v
+            vals = [xmins, ymins, xmaxs, ymaxs,
+                    ids, filenames, score, classes,
+                    width, height]
+            
+            new_data = dict(zip(cols, vals))
+            new_data = pd.DataFrame(new_data)
+            self.manager.data = pd.concat([self.data, new_data], ignore_index=True)
+            self.data = self.manager.data
+
+            # old_ids = shapes_layer.features['init_id'].values.astype(int)
+            # curr_ids = shapes_layer.features['id'].values.astype(int)
+
+            # ymins, xmins = np.array(shapes_layer.data).min(axis=1).T
+            # ymaxs, xmaxs = np.array(shapes_layer.data).max(axis=1).T
+
+            # cols = ['xmin', 'ymin', 'xmax', 'ymax', 'id']
+            # vals = [xmins, ymins, xmaxs, ymaxs, curr_ids]
+
+            # idxs = self.data[(self.data['filename'].str.contains(shapes_layer.name.split('bboxes_')[1])) & (self.data['id'].isin(old_ids))].index
+            # # print(f'Updating {len(idxs)} rows in data')
+            # for c, v in zip(cols, vals):
+            #     self.data.loc[idxs, c] = v
 
 
 
