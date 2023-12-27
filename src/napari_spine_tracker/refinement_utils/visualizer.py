@@ -26,6 +26,14 @@ from napari.utils.action_manager import action_manager
 
 import pandas as pd
 
+TEXT_PARAMS =   {
+                'string': 'id',
+                'size': 8,
+                'color': 'yellow',
+                'anchor': 'upper_left',
+                'translation': [-1, 1],
+                }
+
 class FrameReader(QWidget):
     """
     Dummy widget showcasing how to place additional widgets to the right
@@ -78,18 +86,9 @@ class FrameReader(QWidget):
         def _add_bbox(event):
             self._add_bbox(event)
 
-        # callbacks
-        
         # bbox data
         self.extract_data_to_draw()
         self.shapes_layer = None
-
-        # grasp event mouse release, if mode==add_rectangle and shape is selected, pass mode to select
-        # @self.viewer_model.mouse_drag_callbacks.append
-        # def _mouse_drag_callback(viewer, event):
-        #     print(event.type)
-        #     if event.type=='mouse_release' and self.shapes_layer is not None and self.shapes_layer.mode == Mode.ADD_RECTANGLE:
-        #         self.shapes_layer.mode = Mode.SELECT
 
     def _prepare_reader(self):
         init_frame_val = 0
@@ -163,13 +162,6 @@ class FrameReader(QWidget):
                       for ymin, xmin, ymax, xmax in self.objs[['ymin', 'xmin', 'ymax', 'xmax']].values
                       ]
         self.feats = {'id': self.ids, 'init_id': self.ids}
-        self.text_params = {
-                    'string': 'id',
-                    'size': 8,
-                    'color': 'yellow',
-                    'anchor': 'upper_left',
-                    'translation': [-1, 1],
-                }
 
     def _set_contrast_limits(self, values):
         cmin, cmax = values
@@ -199,7 +191,7 @@ class FrameReader(QWidget):
                                         face_color='transparent',
                                         name='bboxes_' + self.filenames[self.frame_num],
                                         visible=True,
-                                        text=self.text_params,
+                                        text=TEXT_PARAMS,
                                         features=self.feats,
                                         )
             self.shapes_layer = self.viewer_model.layers['bboxes_' + self.filenames[self.frame_num]]
@@ -233,7 +225,7 @@ class FrameReader(QWidget):
                                                              edge_color='red',
                                                              face_color='transparent',
                                                              visible=True,
-                                                             text=self.text_params)
+                                                             text=TEXT_PARAMS)
         self.shapes_layer.mode = Mode.ADD_RECTANGLE
         
         @self.shapes_layer.mouse_drag_callbacks.append
@@ -248,9 +240,23 @@ class FrameReader(QWidget):
             # on release
             if dragged:
                 self.shapes_layer.mode = Mode.SELECT
+                self.shapes_layer.selected_data = [len(self.shapes_layer.data) - 1]
+                change_id_dialog = IdChanger(self.viz.root_widget, self.viewer_model,
+                                     self.shapes_layer)
+                change_id_dialog.show()
+                # add new row to data
+                # self.objs 
                 # print('drag end')
             # else:
             #     print('clicked!')
+        
+        # # select last added rectangle
+        # @self.shapes_layer.events.added.connect
+        # def on_add(layer, event):
+        #     print('added')
+        #     self.shapes_layer.selected_data = [len(self.shapes_layer.data) - 1]
+        #     self.shapes_layer.mode = Mode.SELECT
+        
 
     def _delete_shape(self, event):
         # if no shape is selected, do nothing
@@ -289,7 +295,7 @@ class FrameReader(QWidget):
                         face_color='transparent',
                         name=layer_name,
                         visible=True,
-                        text=self.text_params,
+                        text=TEXT_PARAMS,
                         features=feats,
                         )
             self.viewer_model.layers[layer_name].mode = Mode.SELECT
@@ -350,7 +356,8 @@ class IdChanger(QDialog):
             
             ymins, xmins = np.array(shapes_layer.data).min(axis=1).T
             ymaxs, xmaxs = np.array(shapes_layer.data).max(axis=1).T
-            rects = [[[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] for ymin, xmin, ymax, xmax in zip(ymins, xmins, ymaxs, xmaxs)]
+            rects = [[[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] 
+                     for ymin, xmin, ymax, xmax in zip(ymins, xmins, ymaxs, xmaxs)]
             ids = shapes_layer.features['id'].values
             ids[self.idx_selected_shape] = str(new_id)
             init_ids = shapes_layer.features['init_id'].values
@@ -363,7 +370,7 @@ class IdChanger(QDialog):
                         face_color='transparent',
                         name=self.layer_name,
                         visible=True,
-                        text=self.text_params,
+                        text=TEXT_PARAMS,
                         features=feats,
                         )
             self.viewer_model.layers[self.layer_name].mode = Mode.SELECT
