@@ -130,6 +130,7 @@ class FrameReader(QWidget):
 
     def set_frame(self, frame):
         self._old_frame = self.frame_num
+        # TODO: before updating data, check that no id is repeated, and if so, ask the user to change it
         self.viz.update_data(self.viewer_model.layers)
         self.viewer_model.layers.remove(self.filenames[self.frame_num])
         self.viewer_model.add_image(self.imgs[frame], name=self.filenames[frame])
@@ -233,32 +234,23 @@ class FrameReader(QWidget):
                                                              face_color='transparent',
                                                              visible=True,
                                                              text=self.text_params)
-            
-            # add callback to change mode to select when rectangle is drawn
-            # @self.shapes_layer.mouse_drag_callbacks.append
-            # def _shape_was_added(viewer, event):
-            #     print(event.type)
-            #     if event.type == 'mouse_release':
-            #         self.shapes_layer.mode = Mode.SELECT
-
         self.shapes_layer.mode = Mode.ADD_RECTANGLE
-        # get notified when _finish_drawing() is called
-        # TODO
-
-        # self.coords = [[256-10, 256-10], [256-10, 256+10], [256+10, 256+10], [256+10, 256-10]]
-        # self.feats = {'id': ['-1'], 'init_id': ['-1']}
-        # self.viewer_model.add_shapes(self.coords,
-        #                             shape_type='rectangle',
-        #                             edge_color=np.array(['red']),
-        #                             face_color='transparent',
-        #                             name=layer_name,
-        #                             visible=True,
-        #                             text=self.text_params,
-        #                             features=self.feats)
-
-        # self.shapes_layer = self.viewer_model.layers[layer_name]
-        # self.shapes_layer.mode = Mode.SELECT
         
+        @self.shapes_layer.mouse_drag_callbacks.append
+        def click_drag(layer, event):
+            # print('mouse down')
+            dragged = False
+            yield
+            # on move
+            while event.type == 'mouse_move':
+                dragged = True
+                yield
+            # on release
+            if dragged:
+                self.shapes_layer.mode = Mode.SELECT
+                # print('drag end')
+            # else:
+            #     print('clicked!')
 
     def _delete_shape(self, event):
         # if no shape is selected, do nothing
