@@ -130,7 +130,6 @@ class FrameReader(QWidget):
     def set_frame(self, frame):
         self._old_frame = self.frame_num
         # TODO: before updating data, check that no id is repeated, and if so, ask the user to change it
-        self.viz.update_data(self.viewer_model.layers)
         self.viewer_model.layers.remove(self.filenames[self.frame_num])
         self.viewer_model.add_image(self.imgs[frame], name=self.filenames[frame])
         self.frame_slider.setValue(frame)
@@ -155,13 +154,22 @@ class FrameReader(QWidget):
         self.max_val_bin_len = len(max_val_bin)
     
     def extract_data_to_draw(self):
-        self.objs = self.viz.data[self.viz.data['filename'].str.contains(self.filenames[self.frame_num])]
+        self.objs = self.viz.local_data[self.viz.local_data['filename'].str.contains(self.filenames[self.frame_num])]
         self.ids = [str(id) for id in self.objs['id'].values]
         self.coords = [
                 [[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] 
                       for ymin, xmin, ymax, xmax in self.objs[['ymin', 'xmin', 'ymax', 'xmax']].values
                       ]
-        self.feats = {'id': self.ids, 'init_id': self.ids}
+        self.filenames_per_id = [np.unique([f for f in self.viz.local_data[self.viz.local_data['id']==curr_id]['filename'].values])  
+                              for curr_id in self.ids]
+        self.id_in_both_tps = [list(np.unique([f.split('tp')[1][0] for f in fid])) for fid in self.filenames_per_id]
+        self.colors = ['yellow' if len(id) == 2 else 'green' for id in self.id_in_both_tps]
+        
+    def repaint_bboxes(self):
+        if self.shapes_layer is not None:
+            self.viewer_model.layers.remove(self.shapes_layer)
+            self.shapes_layer = None
+        self.show_bboxes_in_frame()
 
     def _set_contrast_limits(self, values):
         cmin, cmax = values
@@ -181,18 +189,14 @@ class FrameReader(QWidget):
                 print('No objects in this frame')
                 return
             
-            filenames_per_id = [np.unique([os.path.basename(f) for f in self.viz.data[self.viz.data['id']==int(curr_id)]['filename'].values])  
-                              for curr_id in self.ids]
-            id_in_both_tps = [list(np.unique([f.split('tp')[1][0] for f in fid])) for fid in filenames_per_id]
-            colors = ['yellow' if len(id) == 2 else 'green' for id in id_in_both_tps]
             self.viewer_model.add_shapes(self.coords,
                                         shape_type='rectangle',
-                                        edge_color=np.array(colors),
+                                        edge_color=np.array(self.colors),
                                         face_color='transparent',
                                         name='bboxes_' + self.filenames[self.frame_num],
                                         visible=True,
                                         text=TEXT_PARAMS,
-                                        features=self.feats,
+                                        features={'id': self.ids},
                                         )
             self.shapes_layer = self.viewer_model.layers['bboxes_' + self.filenames[self.frame_num]]
 
@@ -202,13 +206,18 @@ class FrameReader(QWidget):
     def _change_id_on_dialog(self, event):
         if not self.show_bboxes_checkbox.isChecked():
             return
-        shapes_layer = self.viewer_model.layers['bboxes_' + self.filenames[self.frame_num]]
-        change_id_dialog = IdChanger(self.viz.root_widget, self.viewer_model,
-                                     shapes_layer)
-        change_id_dialog.show()
+        change_id_dialog = IdChanger(self.viz, 
+                                     self.viz.root_widget, 
+                                     self.viewer_model,
+                                     self.shapes_layer)
+        # change_id_dialog.show()
+        # not continue until dialog is closed
+        change_id_dialog.exec_()
+        self.extract_data_to_draw()
+        self.repaint_bboxes()
     
     def delete_row_from_data(self, idx):
-        self.viz.data.drop(idx, inplace=True)
+        self.viz.local_data.drop(idx, inplace=True)
     
     def _add_bbox(self, event):
         if not self.show_bboxes_checkbox.isChecked():
@@ -221,7 +230,7 @@ class FrameReader(QWidget):
         if self.shapes_layer is None:
             self.shapes_layer = self.viewer_model.add_shapes(name=layer_name,
                                                              shape_type='rectangle',
-                                                             features={'id':[], 'init_id':[]},
+                                                             features={'id':[]},
                                                              edge_color='red',
                                                              face_color='transparent',
                                                              visible=True,
@@ -241,68 +250,101 @@ class FrameReader(QWidget):
             if dragged:
                 self.shapes_layer.mode = Mode.SELECT
                 self.shapes_layer.selected_data = [len(self.shapes_layer.data) - 1]
-                change_id_dialog = IdChanger(self.viz.root_widget, self.viewer_model,
-                                     self.shapes_layer)
-                change_id_dialog.show()
-                # add new row to data
-                # self.objs 
-                # print('drag end')
-            # else:
-            #     print('clicked!')
-        
-        # # select last added rectangle
-        # @self.shapes_layer.events.added.connect
-        # def on_add(layer, event):
-        #     print('added')
-        #     self.shapes_layer.selected_data = [len(self.shapes_layer.data) - 1]
-        #     self.shapes_layer.mode = Mode.SELECT
-        
+                # change_id_dialog = IdChanger(self.viz.root_widget, self.viewer_model,
+                #                      self.shapes_layer)
+                # change_id_dialog.show()
+                ymin, xmin = np.array(self.shapes_layer.data[-1]).min(axis=0)
+                ymax, xmax = np.array(self.shapes_layer.data[-1]).max(axis=0)
+                new_row = {'xmin': xmin,
+                           'ymin': ymin, 
+                           'xmax': xmax, 
+                           'ymax': ymax, 
+                           'id': self.shapes_layer.features['id'].values[-1],
+                           'filename': self.filenames[self.frame_num], 
+                           'score': 1, 
+                           'class': 'spine', 
+                           'width': 512, 
+                           'height': 512,
+                           }
+                self.add_new_tracklet(new_row)
+                self._change_id_on_dialog(event=None)
+                # change_id_dialog = IdChanger(self.viz.root_widget, self.viewer_model,
+                #                      self.shapes_layer)
+                # change_id_dialog.show()
+                # update drawings
+                # self.extract_data_to_draw()
+                # self.repaint_bboxes()
+    
+    def add_new_tracklet(self, row_to_add):
+        # if ID already exists, ask user to change it
+        if row_to_add['id'] in self.ids:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText("Error: repeated ID in frame, please change it")
+            msg.exec_()
+            return
+
+        new_local_data = pd.DataFrame(row_to_add, index=[0])
+        self.viz.local_data = pd.concat([self.viz.local_data, new_local_data], ignore_index=True)
 
     def _delete_shape(self, event):
         # if no shape is selected, do nothing
         if not self.show_bboxes_checkbox.isChecked():
             return
-        layer_name = 'bboxes_' + self.filenames[self.frame_num]
-        shapes_layer = self.viewer_model.layers[layer_name]
-        self.idx_selected_shape = [s for s in shapes_layer.selected_data]
-        if len(self.idx_selected_shape) != 1:
+        # layer_name = 'bboxes_' + self.filenames[self.frame_num]
+        # shapes_layer = self.viewer_model.layers[layer_name]
+        # self.idx_selected_shape = list(self.shapes_layer.selected_data)
+        if len(list(self.shapes_layer.selected_data)) == 0: # TODO: change, what happens if selected more than one shape?
             print("No rectangle selected")
             return
-        self.idx_selected_shape = self.idx_selected_shape[0]
+        # self.idx_selected_shape = self.idx_selected_shape[0]
+        # for idx in self.shapes_layer.selected_data:
+        #     self.shapes_layer.data.pop(idx)
+        
+        self.shapes_layer.mode = Mode.SELECT
+        # self.viewer_model.layers.remove(layer_name)
+
+        # remove shape from self.shapes_layer
+        # self.shapes_layer.data.pop(self.idx_selected_shape)
+        # self.viewer_model.layers[layer_name].mode = Mode.SELECT
+
         # remove shape from layer
         # shapes_layer.data.pop(self.idx_selected_shape)
         # shapes_layer.selected_data = []
         # remove shape from data
-        id_to_remove = shapes_layer.features['id'].values[self.idx_selected_shape]
+        # id_to_remove = self.shapes_layer.features['id'].values[self.idx_selected_shape]
         
-        ymins, xmins = np.array(shapes_layer.data).min(axis=1).T
-        ymaxs, xmaxs = np.array(shapes_layer.data).max(axis=1).T
-        rects = [[[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] for ymin, xmin, ymax, xmax in zip(ymins, xmins, ymaxs, xmaxs)]
-        rects.pop(self.idx_selected_shape)
-        ids = list(shapes_layer.features['id'].values)
-        init_ids = list(shapes_layer.features['init_id'].values)
-        colors = list(shapes_layer.edge_color)
-        ids.pop(self.idx_selected_shape)
-        init_ids.pop(self.idx_selected_shape)
-        colors.pop(self.idx_selected_shape)
+        # ymins, xmins = np.array(self.shapes_layer.data).min(axis=1).T
+        # ymaxs, xmaxs = np.array(self.shapes_layer.data).max(axis=1).T
+        # rects = [[[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] for ymin, xmin, ymax, xmax in zip(ymins, xmins, ymaxs, xmaxs)]
+        # rects.pop(self.idx_selected_shape)
+        # ids = list(self.shapes_layer.features['id'].values)
+        # init_ids = list(self.shapes_layer.features['init_id'].values)
+        # colors = list(self.shapes_layer.edge_color)
+        # ids.pop(self.idx_selected_shape)
+        # init_ids.pop(self.idx_selected_shape)
+        # colors.pop(self.idx_selected_shape)
 
-        feats = {'id': ids, 'init_id': init_ids}
-        self.viewer_model.layers.remove(layer_name)
-        if len(ids) > 0:
-            self.viewer_model.add_shapes(rects,
-                        shape_type='rectangle',
-                        edge_color=colors,
-                        face_color='transparent',
-                        name=layer_name,
-                        visible=True,
-                        text=TEXT_PARAMS,
-                        features=feats,
-                        )
-            self.viewer_model.layers[layer_name].mode = Mode.SELECT
-
-        idx = self.viz.data[((self.viz.data['filename'].str.contains(self.filenames[self.frame_num])) & (self.viz.data['id'] == int(id_to_remove)))].index
-        # print(f'deleting row {idx} from data')
-        self.delete_row_from_data(idx)
+        # self.viewer_model.layers.remove(layer_name)
+        # if len(ids) > 0:
+        #     self.viewer_model.add_shapes(rects,
+        #                 shape_type='rectangle',
+        #                 edge_color=colors,
+        #                 face_color='transparent',
+        #                 name=layer_name,
+        #                 visible=True,
+        #                 text=TEXT_PARAMS,
+        #                 features={'id': ids, 'init_id': init_ids},
+        #                 )
+        #    self.viewer_model.layers[layer_name].mode = Mode.SELECT
+        fn = self.shapes_layer.name.split('bboxes_')[1]
+        for idx_data in self.shapes_layer.selected_data:
+            id_to_remove = self.shapes_layer.features['id'].values[idx_data]
+            idx_row = self.viz.local_data[((self.viz.local_data['filename']==fn) & (self.viz.local_data['id'] == int(id_to_remove)))].index
+            # print(f'deleting row {idx} from data')
+            self.delete_row_from_data(idx_row)
+        self.extract_data_to_draw()
+        self.repaint_bboxes()
     
     def _decrease_frame(self, event):
         if self.frame_num > 0:
@@ -313,18 +355,23 @@ class FrameReader(QWidget):
             self.frame_slider.setValue(self.frame_num + 1)
             
 class IdChanger(QDialog):
-    def __init__(self, parent:QWidget, viewer_model, shapes_layer):
+    def __init__(self,
+                 viz,
+                 parent:QWidget, 
+                 viewer_model: ViewerModel, 
+                 shapes_layer: Shapes):
         super().__init__(parent)
+        self.viz = viz
         self.viewer_model = viewer_model
-        self.idx_selected_shape = [s for s in shapes_layer.selected_data]
-        if len(self.idx_selected_shape) != 1:
+        self.shapes_layer = shapes_layer
+        if len(self.shapes_layer.selected_data) == 0:
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Warning)
             msg.setText("Please select one rectangle")
             self.close()
             msg.exec_()
-        self.idx_selected_shape = self.idx_selected_shape[0]
-        self.layer_name = shapes_layer.name
+        self.idx_selected_shape = list(self.shapes_layer.selected_data)[-1]
+        # self.layer_name = self.shapes_layer.name
         self.setWindowTitle("Change ID")
         self.setWindowModality(Qt.ApplicationModal)
         self.resize(200, 100)
@@ -344,37 +391,23 @@ class IdChanger(QDialog):
         self.setLayout(main_layout)
 
     def _close_dialog(self):
+        id_to_change = self.shapes_layer.features['id'].values[self.idx_selected_shape]
         if self.text_id.text() != '':
             new_id = self.text_id.text()
-            if new_id in self.viewer_model.layers[self.layer_name].features['id'].values:
+            ids = self.shapes_layer.features['id'].values
+            if new_id in ids:
                 msg = QMessageBox()
                 msg.setIcon(QMessageBox.Warning)
                 msg.setText("ID already exists")
                 msg.exec_()
                 return
-            shapes_layer = self.viewer_model.layers[self.layer_name]
+            # udpate id on data
+            fn = self.shapes_layer.name.split('bboxes_')[1]
+            self.viz.local_data.loc[((self.viz.local_data['filename'] == fn) & (self.viz.local_data['id'].astype(str) == str(id_to_change))), 'id'] = int(new_id)
             
-            ymins, xmins = np.array(shapes_layer.data).min(axis=1).T
-            ymaxs, xmaxs = np.array(shapes_layer.data).max(axis=1).T
-            rects = [[[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] 
-                     for ymin, xmin, ymax, xmax in zip(ymins, xmins, ymaxs, xmaxs)]
-            ids = shapes_layer.features['id'].values
-            ids[self.idx_selected_shape] = str(new_id)
-            init_ids = shapes_layer.features['init_id'].values
-            colors = shapes_layer.edge_color
-            feats = {'id': ids, 'init_id': init_ids}
-            self.viewer_model.layers.remove(self.layer_name)
-            self.viewer_model.add_shapes(rects,
-                        shape_type='rectangle',
-                        edge_color=colors,
-                        face_color='transparent',
-                        name=self.layer_name,
-                        visible=True,
-                        text=TEXT_PARAMS,
-                        features=feats,
-                        )
-            self.viewer_model.layers[self.layer_name].mode = Mode.SELECT
-            # print(f'Changing ID to {new_id}')
+            self.shapes_layer.mode = Mode.SELECT
+            # print(self.shapes_layer.features['id'].values)
+            # # print(f'Changing ID to {new_id}')
             self.close()
             
 class TrackletVisualizer:
@@ -391,7 +424,8 @@ class TrackletVisualizer:
         self.manager = manager
         
         self.unq_filenames = manager.unq_filenames
-        self.data = manager.data
+        # self.local_data = manager.data
+        self.local_data: pd.DataFrame = manager.data.copy()
 
         self.stack_names = np.unique([f.split('_layer')[0] for f in self.unq_filenames])
         all_filenames = []
@@ -465,56 +499,3 @@ class TrackletVisualizer:
                     vm.layers[shapes_layer_name].mode = Mode.SELECT
                 else:
                     vm.layers[shapes_layer_name].mode = Mode.PAN_ZOOM
-
-    def update_data(self, layers):
-        all_shapes_layer = [layer for layer in layers if 'bboxes_' in layer.name]
-        for shapes_layer in all_shapes_layer:
-            ids = shapes_layer.features['id'].values.astype(int)
-            ymins, xmins = np.array(shapes_layer.data).min(axis=1).T
-            ymaxs, xmaxs = np.array(shapes_layer.data).max(axis=1).T
-            filenames = [shapes_layer.name.split('bboxes_')[1]] * len(ids)
-            score = [1] * len(ids)
-            classes = ['spine'] * len(ids)
-            width = [512] * len(ids)
-            height = [512] * len(ids)
-
-            cols = ['xmin', 'ymin', 'xmax', 'ymax', 
-                    'id', 'filename', 'score', 'class',
-                    'width', 'height']
-            
-            rows2drop = self.data[self.data['filename'].str.contains(filenames[0])]
-            self.data.drop(rows2drop.index, inplace=True)
-
-            vals = [xmins, ymins, xmaxs, ymaxs,
-                    ids, filenames, score, classes,
-                    width, height]
-            
-            new_data = dict(zip(cols, vals))
-            new_data = pd.DataFrame(new_data)
-            self.manager.data = pd.concat([self.data, new_data], ignore_index=True)
-            self.data = self.manager.data
-
-            # old_ids = shapes_layer.features['init_id'].values.astype(int)
-            # curr_ids = shapes_layer.features['id'].values.astype(int)
-
-            # ymins, xmins = np.array(shapes_layer.data).min(axis=1).T
-            # ymaxs, xmaxs = np.array(shapes_layer.data).max(axis=1).T
-
-            # cols = ['xmin', 'ymin', 'xmax', 'ymax', 'id']
-            # vals = [xmins, ymins, xmaxs, ymaxs, curr_ids]
-
-            # idxs = self.data[(self.data['filename'].str.contains(shapes_layer.name.split('bboxes_')[1])) & (self.data['id'].isin(old_ids))].index
-            # # print(f'Updating {len(idxs)} rows in data')
-            # for c, v in zip(cols, vals):
-            #     self.data.loc[idxs, c] = v
-
-
-
-
-        
-
-
-            
-
-
-        

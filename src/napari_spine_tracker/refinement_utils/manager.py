@@ -44,7 +44,7 @@ class TrackletManager:
         # self.root_widget.layout.addSpacing(10)
     
     def _load_tracklets(self, df_tracklets):
-        layers = [int(f.split('_layer')[1].split('.')[0]) for f in df_tracklets['filename'].values]
+        # layers = [int(f.split('_layer')[1].split('.')[0]) for f in df_tracklets['filename'].values]
         df_tracklets['filename'] = [os.path.basename(f) for f in df_tracklets['filename'].values]
         self.unq_filenames = np.unique(df_tracklets['filename'].values)
         self.n_frames = len(np.unique(self.unq_filenames))
@@ -53,6 +53,9 @@ class TrackletManager:
     def load_tracklets_from_csv(self, datafile):
         self.filepath = datafile
         self.data = pd.read_csv(datafile)
+        # drop 'layer' column
+        if 'layer' in self.data.columns:
+            self.data.drop(['layer'], axis=1, inplace=True)
         # self.data = self.data[self.data['filename'].str.contains('layer076') | self.data['filename'].str.contains('layer077')] # TODO: remove after testing
         self._load_tracklets(self.data)
     
@@ -62,6 +65,11 @@ class TrackletManager:
             output_name = self.filepath
         df_tracklets.to_csv(output_name, index=False)
         print(f"Saved tracklets to {output_name}")
+    
+    def update_csv(self, updated_data):
+        self.data = updated_data
+        self._load_tracklets(self.data)
+        self.save()
     
     def help(self):
         # open help dialog
