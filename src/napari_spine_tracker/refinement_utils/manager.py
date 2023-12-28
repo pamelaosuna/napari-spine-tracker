@@ -43,10 +43,12 @@ class TrackletManager:
         self.root_widget.layout.addLayout(h_layout)
         # self.root_widget.layout.addSpacing(10)
     
-    def _load_tracklets(self, df_tracklets):
+    def _load_unq_filenames(self):
+        self.unq_filenames = np.unique([os.path.basename(f) for f in self.data['filename'].values])
+    
+    def _load_tracklets(self):
         # layers = [int(f.split('_layer')[1].split('.')[0]) for f in df_tracklets['filename'].values]
-        df_tracklets['filename'] = [os.path.basename(f) for f in df_tracklets['filename'].values]
-        self.unq_filenames = np.unique(df_tracklets['filename'].values)
+        self._load_unq_filenames()
         self.n_frames = len(np.unique(self.unq_filenames))
         # print(df_tracklets.shape)
 
@@ -57,7 +59,7 @@ class TrackletManager:
         if 'layer' in self.data.columns:
             self.data.drop(['layer'], axis=1, inplace=True)
         # self.data = self.data[self.data['filename'].str.contains('layer076') | self.data['filename'].str.contains('layer077')] # TODO: remove after testing
-        self._load_tracklets(self.data)
+        self._load_tracklets()
     
     def save(self, output_name=""):
         df_tracklets = self.data
@@ -68,7 +70,6 @@ class TrackletManager:
     
     def update_csv(self, updated_data):
         self.data = updated_data
-        self._load_tracklets(self.data)
         self.save()
     
     def help(self):
@@ -88,26 +89,17 @@ class TrackletManager:
     def add_new_tracklet(self, row_to_add):
         row_tracklet = pd.DataFrame(row_to_add, columns=self.data.columns)
         self.data = pd.concat([self.data, row_tracklet], ignore_index=True)
-        self._load_tracklets(self.data)
     
-    def remove_tracklet(self, row_to_remove):
-        idx = self.data[
-                (self.data['filename'] == row_to_remove['filename']) &
-                (self.data['id'] == row_to_remove['id']) &
-                (self.data('xmin') == row_to_remove('xmin')) &
-                (self.data('ymin') == row_to_remove('ymin'))
-            ].index
-        self.data = self.data.drop(idx)
-        self._load_tracklets(self.data)
+    def remove_tracklet(self, row_idxs):
+        self.data = self.data.drop(row_idxs)
     
-    def change_id(self, row_to_change, new_id):
-        idx = self.data[
-                (self.data['filename'] == row_to_change['filename']) &
-                (self.data['id'] == row_to_change['id']) &
-                (self.data('xmin') == row_to_change('xmin')) &
-                (self.data('ymin') == row_to_change('ymin'))
-            ].index
-        self.data.loc[idx, 'id'] = new_id
+    def change_id(self, idx_row, new_id):
+        self.data.loc[idx_row, 'id'] = new_id
 
-        
+    def get_data(self):
+        return self.data
+
+    def get_unq_filenames(self):
+        self._load_unq_filenames()
+        return self.unq_filenames
         
