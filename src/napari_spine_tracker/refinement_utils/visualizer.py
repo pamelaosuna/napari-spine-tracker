@@ -57,6 +57,7 @@ class FrameReader(QWidget):
                                 'napari:activate_add_ellipse_mode',
                                 'napari:activate_add_path_mode',
                                 'napari:activate_add_polygon_mode',
+                                'napari:delete_selected_shapes',
         ]
         for s in shortcuts_to_unbind:
             action_manager.unbind_shortcut(s)
@@ -244,7 +245,7 @@ class FrameReader(QWidget):
                            'ymin': ymin, 
                            'xmax': xmax, 
                            'ymax': ymax, 
-                           'id': self.shapes_layer.features['id'].values[-1],
+                           'id': 'nan',
                            'filename': self.filenames[self.frame_num], 
                            'score': 1, 
                            'class': 'spine', 
@@ -273,11 +274,11 @@ class FrameReader(QWidget):
             return
         
         fn = self.shapes_layer.name.split('bboxes_')[1]
-        ids_to_remove = self.shapes_layer.features['id'].values[self.shapes_layer.selected_data]
+        ids_to_remove = self.shapes_layer.features['id'].values[list(self.shapes_layer.selected_data)].astype(str)
         data = self.viz.manager.get_data()
         idxs_rows = data[
                 (data['filename'] == fn) &
-                (data['id'].isin(ids_to_remove))
+                (data['id'].astype(str).isin(ids_to_remove))
             ].index
         self.viz.manager.remove_tracklet(idxs_rows)
 
@@ -333,7 +334,7 @@ class IdChanger(QDialog):
         self.setLayout(main_layout)
 
     def _close_dialog(self):
-        id_to_change = self.shapes_layer.features['id'].values[self.idx_selected_shape]
+        # id_to_change = self.shapes_layer.features['id'].values[self.idx_selected_shape]
         if self.text_id.text() != '':
             new_id = self.text_id.text()
             ids = self.shapes_layer.features['id'].values
@@ -348,7 +349,7 @@ class IdChanger(QDialog):
             data = self.viz.manager.get_data()
             idx_row = data[
                 (data['filename'] == fn) &
-                (data['id'] == id_to_change)
+                (data['id'].astype(str) == 'nan')
             ].index
             self.viz.manager.change_id(idx_row, int(new_id))
             

@@ -87,7 +87,7 @@ class TrackletManager:
         dialog.exec_()
     
     def add_new_tracklet(self, row_to_add):
-        row_tracklet = pd.DataFrame(row_to_add, columns=self.data.columns)
+        row_tracklet = pd.DataFrame(row_to_add, index = [0])
         self.data = pd.concat([self.data, row_tracklet], ignore_index=True)
     
     def remove_tracklet(self, row_idxs):

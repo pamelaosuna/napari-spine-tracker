@@ -90,11 +90,6 @@ class TrackingCurationWidget(QWidget):
     def _help(self):
         print("Help")
         
-        # to change ID of 2D detection, select it and press 'i'
-        # to remove 2D detection, select it and press 'd'
-        # to move between frames, use arrows left and right for the left visualizer
-        # to move between frames, use arrows up and down for the right visualizer
-    
     def _new_project(self):
         print("New Project")
         self.parent().setFloating(True)
