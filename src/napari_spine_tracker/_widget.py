@@ -18,7 +18,6 @@ if TYPE_CHECKING:
 from napari_spine_tracker.tabs import *
 import napari
 import os
-import numpy as np
 
 class ExampleQWidget(QWidget):
     # your QWidget.__init__ can optionally request the napari viewer instance

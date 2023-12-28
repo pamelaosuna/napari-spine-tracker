@@ -5,7 +5,6 @@ from qtpy.QtWidgets import QSplitter, QVBoxLayout, QHBoxLayout
 from qtpy.QtWidgets import QSplitter
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
-    QPushButton,
     QSlider,
     QWidget,
     QLabel,
@@ -17,7 +16,7 @@ from qtpy.QtWidgets import (
 from qtpy.QtGui import QIntValidator
 
 
-from napari.layers import Image, Shapes
+from napari.layers import Shapes
 from napari.layers.shapes._shapes_constants import Mode
 from napari.components.viewer_model import ViewerModel
 from napari_spine_tracker.tabs.multi_view  import  QtViewerWrap
@@ -90,11 +89,11 @@ class FrameReader(QWidget):
         self.frame_num = init_frame_val
 
         self._load_images()
-        self.viewer_model.add_image(self.imgs[init_frame_val], name=self.filenames[init_frame_val])
+        self.viewer_model.add_image(self.imgs[init_frame_val], 
+                                    name=self.filenames[init_frame_val])
 
         self.frame_slider = QSlider(Qt.Horizontal)
-        self.frame_slider.setMinimum(0)
-        self.frame_slider.setMaximum(len(self.filenames)-1)
+        self.frame_slider.setRange(0, len(self.filenames)-1)
         self.frame_slider.setValue(init_frame_val)
         self.frame_slider.valueChanged.connect(self.set_frame)
 
@@ -127,7 +126,6 @@ class FrameReader(QWidget):
         self.viewer_model.add_image(self.imgs[frame], name=self.filenames[frame])
         self.frame_slider.setValue(frame)
         self.frame_text.setText(f'Frame number: {frame+1} | Total frames: {len(self.filenames)}')
-        # self.fname_text.setText(self.filenames[frame])
         self.frame_num = frame
         self.remove_bboxes()
         self.extract_data_to_draw()
@@ -209,6 +207,10 @@ class FrameReader(QWidget):
         self.repaint_bboxes()
     
     def _add_bbox(self, event):
+        if self.shapes_layer is not None and self.shapes_layer.mode == Mode.ADD_RECTANGLE:
+            self.shapes_layer.mode = Mode.SELECT
+            return
+        
         if not self.show_bboxes_checkbox.isChecked():
             self.show_bboxes_checkbox.setChecked(True)
         if not self.viz.selection_mode.isChecked():
@@ -257,12 +259,12 @@ class FrameReader(QWidget):
     
     def _add_row(self, row_to_add):
         # if ID already exists, ask user to change it
-        if row_to_add['id'] in self.ids:
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Warning)
-            msg.setText("Error: repeated ID in frame, please change it")
-            msg.exec_()
-            return
+        # if row_to_add['id'] in self.ids:
+        #     msg = QMessageBox()
+        #     msg.setIcon(QMessageBox.Warning)
+        #     msg.setText("Error: repeated ID in frame, please change it")
+        #     msg.exec_()
+        #     return
         self.viz.manager.add_new_tracklet(row_to_add)
 
     def _delete_shape(self, event):
@@ -315,6 +317,7 @@ class IdChanger(QDialog):
             self.close()
             msg.exec_()
         self.idx_selected_shape = list(self.shapes_layer.selected_data)[-1]
+        self.id_to_change = self.shapes_layer.features['id'].values[self.idx_selected_shape]
         self.setWindowTitle("Change ID")
         self.setWindowModality(Qt.ApplicationModal)
         self.resize(200, 100)
@@ -327,32 +330,36 @@ class IdChanger(QDialog):
         self.text_id.setPlaceholderText("Enter new ID")
         self.text_id.setValidator(QIntValidator())
         self.text_id.setFocus()
-        self.text_id.returnPressed.connect(self._close_dialog)
+        self.text_id.returnPressed.connect(self._check_valid_id)
         # use Esc to cancel
         # self.text_id.keyPressEvent = lambda event: self.close() if event.key() == Qt.Key_Escape else None
         main_layout.addWidget(self.text_id)
         self.setLayout(main_layout)
+    
+    def _check_valid_id(self):
+        # invalid_id = True
+        new_id = self.text_id.text()
+        ids = self.shapes_layer.features['id'].values
+        if new_id in ids:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText("ID already exists")
+            msg.exec_()
+            self.text_id.clear()
+            self.text_id.setFocus()
+        elif new_id != '':
+            # invalid_id = False
+            self.shapes_layer.mode = Mode.SELECT
+            self._close_dialog(new_id)
 
-    def _close_dialog(self):
-        # id_to_change = self.shapes_layer.features['id'].values[self.idx_selected_shape]
-        if self.text_id.text() != '':
-            new_id = self.text_id.text()
-            ids = self.shapes_layer.features['id'].values
-            if new_id in ids:
-                msg = QMessageBox()
-                msg.setIcon(QMessageBox.Warning)
-                msg.setText("ID already exists")
-                msg.exec_()
-                return
-            # udpate id on data
+    def _close_dialog(self, new_id):
             fn = self.shapes_layer.name.split('bboxes_')[1]
             data = self.viz.manager.get_data()
             idx_row = data[
                 (data['filename'] == fn) &
-                (data['id'].astype(str) == 'nan')
+                (data['id'].astype(str) == str(self.id_to_change))
             ].index
             self.viz.manager.change_id(idx_row, int(new_id))
-            
             self.shapes_layer.mode = Mode.SELECT
             self.close()
             
