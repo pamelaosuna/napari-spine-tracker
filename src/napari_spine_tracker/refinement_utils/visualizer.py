@@ -152,10 +152,14 @@ class FrameReader(QWidget):
                 [[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] 
                       for ymin, xmin, ymax, xmax in self.objs[['ymin', 'xmin', 'ymax', 'xmax']].values
                       ]
-        self.filenames_per_id = [np.unique([f for f in data[data['id']==curr_id]['filename'].values])  
-                              for curr_id in self.ids]
-        self.id_in_both_tps = [list(np.unique([f.split('tp')[1][0] for f in fid])) for fid in self.filenames_per_id]
-        self.colors = ['yellow' if len(id) == 2 else 'green' for id in self.id_in_both_tps]
+        self.ids_this_tp = np.unique(data[data['filename'].str.contains(self.tp_name)]['id'].values)
+        self.ids_other_tp = np.unique(data[~data['filename'].str.contains(self.tp_name)]['id'].values)
+        self.ids_both_tps = np.intersect1d(self.ids_this_tp, self.ids_other_tp)
+
+        # self.filenames_per_id = [np.unique([f for f in data[data['id']==curr_id]['filename'].values])  
+        #                       for curr_id in self.ids]
+        # self.id_in_both_tps = [list(np.unique([f.split('tp')[1][0] for f in fid])) for fid in self.filenames_per_id]
+        self.colors = ['green' if int(id) in self.ids_both_tps else 'red' for id in self.ids]
         
     def repaint_bboxes(self):
         if self.shapes_layer is not None:
