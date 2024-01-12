@@ -175,25 +175,25 @@ class FrameReader(QWidget):
     def show_bboxes_in_frame(self):
         if not self.show_bboxes_checkbox.isChecked():
             self.remove_bboxes()
+            return
+        elif len(self.objs) == 0:
+            # print('No objects in this frame')
+            return
         else:
-            if len(self.objs) == 0:
-                # print('No objects in this frame')
-                return
-            
-        layer_name = 'bboxes_' + self.filenames[self.frame_num]
-        self.viewer_model.add_shapes(self.coords,
-                                    shape_type='rectangle',
-                                    edge_color=np.array(self.colors),
-                                    face_color='transparent',
-                                    name=layer_name,
-                                    visible=True,
-                                    text=TEXT_PARAMS,
-                                    features={'id': self.ids},
-                                    )
-        self.shapes_layer = self.viewer_model.layers[layer_name]
+            layer_name = 'bboxes_' + self.filenames[self.frame_num]
+            self.viewer_model.add_shapes(self.coords,
+                                        shape_type='rectangle',
+                                        edge_color=np.array(self.colors),
+                                        face_color='transparent',
+                                        name=layer_name,
+                                        visible=True,
+                                        text=TEXT_PARAMS,
+                                        features={'id': self.ids},
+                                        )
+            self.shapes_layer = self.viewer_model.layers[layer_name]
 
-        if self.viz.selection_mode.isChecked():
-            self.shapes_layer.mode = Mode.SELECT
+            if self.viz.selection_mode.isChecked():
+                self.shapes_layer.mode = Mode.SELECT
                 
     def _change_id_on_dialog(self, event):
         if not self.show_bboxes_checkbox.isChecked():
