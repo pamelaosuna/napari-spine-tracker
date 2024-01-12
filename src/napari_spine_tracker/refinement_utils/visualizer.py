@@ -274,7 +274,7 @@ class FrameReader(QWidget):
         ids_to_remove = self.shapes_layer.features['id'].values[list(self.shapes_layer.selected_data)].astype(str)
         data = self.viz.manager.get_data()
         idxs_rows = data[
-                (data['filename'] == fn) &
+                (data['filename'].str.contains(fn)) &
                 (data['id'].astype(str).isin(ids_to_remove))
             ].index
         self.viz.manager.remove_tracklet(idxs_rows)
