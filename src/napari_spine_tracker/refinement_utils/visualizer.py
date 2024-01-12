@@ -99,9 +99,9 @@ class FrameReader(QWidget):
 
         self.frame_text = QLabel(f'Frame number: {self.frame_num+1} | Total frames: {len(self.filenames)}')
         self.frame_text.setAlignment(Qt.AlignCenter)
-        self.fname_text = QLabel(self.filenames[self.frame_num])
-        self.fname_text.setAlignment(Qt.AlignLeft)
-        self.fname_text.setStyleSheet("font: 10pt")
+        # self.fname_text = QLabel(self.filenames[self.frame_num])
+        # self.fname_text.setAlignment(Qt.AlignLeft)
+        # self.fname_text.setStyleSheet("font: 10pt")
 
         self.show_bboxes_checkbox = QCheckBox('Show Bounding Boxes')
         self.show_bboxes_checkbox.stateChanged.connect(self.show_bboxes_in_frame)
@@ -114,7 +114,7 @@ class FrameReader(QWidget):
         self.contrast_range_slider.setValue([0, 2**self.max_val_bin_len])
 
         layout = QVBoxLayout()
-        for w in [self.fname_text, self.frame_text, self.frame_slider, self.show_bboxes_checkbox, self.contrast_range_slider]:
+        for w in [self.frame_text, self.frame_slider, self.show_bboxes_checkbox, self.contrast_range_slider]: # self.fname_text, 
             layout.addWidget(w)
         layout.addStretch(1)
         self.setLayout(layout)
@@ -177,23 +177,23 @@ class FrameReader(QWidget):
             self.remove_bboxes()
         else:
             if len(self.objs) == 0:
-                print('No objects in this frame')
+                # print('No objects in this frame')
                 return
             
-            layer_name = 'bboxes_' + self.filenames[self.frame_num]
-            self.viewer_model.add_shapes(self.coords,
-                                        shape_type='rectangle',
-                                        edge_color=np.array(self.colors),
-                                        face_color='transparent',
-                                        name=layer_name,
-                                        visible=True,
-                                        text=TEXT_PARAMS,
-                                        features={'id': self.ids},
-                                        )
-            self.shapes_layer = self.viewer_model.layers[layer_name]
+        layer_name = 'bboxes_' + self.filenames[self.frame_num]
+        self.viewer_model.add_shapes(self.coords,
+                                    shape_type='rectangle',
+                                    edge_color=np.array(self.colors),
+                                    face_color='transparent',
+                                    name=layer_name,
+                                    visible=True,
+                                    text=TEXT_PARAMS,
+                                    features={'id': self.ids},
+                                    )
+        self.shapes_layer = self.viewer_model.layers[layer_name]
 
-            if self.viz.selection_mode.isChecked():
-                self.shapes_layer.mode = Mode.SELECT
+        if self.viz.selection_mode.isChecked():
+            self.shapes_layer.mode = Mode.SELECT
                 
     def _change_id_on_dialog(self, event):
         if not self.show_bboxes_checkbox.isChecked():
@@ -222,7 +222,7 @@ class FrameReader(QWidget):
             self.shapes_layer = self.viewer_model.add_shapes(name=layer_name,
                                                              shape_type='rectangle',
                                                              features={'id':[]},
-                                                             edge_color='red',
+                                                             edge_color='green',
                                                              face_color='transparent',
                                                              visible=True,
                                                              text=TEXT_PARAMS)
@@ -241,6 +241,7 @@ class FrameReader(QWidget):
             if dragged:
                 self.shapes_layer.mode = Mode.SELECT
                 self.shapes_layer.selected_data = [len(self.shapes_layer.data) - 1]
+                self.shapes_layer.features['id'][len(self.shapes_layer.data) - 1] = 'nan'
                 ymin, xmin = np.array(self.shapes_layer.data[-1]).min(axis=0)
                 ymax, xmax = np.array(self.shapes_layer.data[-1]).max(axis=0)
                 new_row = {'xmin': xmin,
@@ -254,24 +255,14 @@ class FrameReader(QWidget):
                            'width': 512, 
                            'height': 512,
                            }
-                self._add_row(new_row)
+                self.viz.manager.add_new_tracklet(new_row)
                 self._change_id_on_dialog(event=None)
     
-    def _add_row(self, row_to_add):
-        # if ID already exists, ask user to change it
-        # if row_to_add['id'] in self.ids:
-        #     msg = QMessageBox()
-        #     msg.setIcon(QMessageBox.Warning)
-        #     msg.setText("Error: repeated ID in frame, please change it")
-        #     msg.exec_()
-        #     return
-        self.viz.manager.add_new_tracklet(row_to_add)
-
     def _delete_shape(self, event):
         if not self.show_bboxes_checkbox.isChecked():
             return
         
-        if len(list(self.shapes_layer.selected_data)) == 0: # TODO: change, what happens if selected more than one shape?
+        if len(list(self.shapes_layer.selected_data)) == 0: # TODO: what happens if selected more than one shape?
             print("No rectangle selected")
             return
         
