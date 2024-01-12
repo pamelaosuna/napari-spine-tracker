@@ -73,6 +73,7 @@ class FrameReader(QWidget):
         self.viewer_model.bind_key('i', self._change_id_on_dialog)
         self.viewer_model.bind_key('Backspace', self._delete_shape)
         self.viewer_model.bind_key('Delete', self._delete_shape)
+        self.viewer_model.bind_key('S', self.viz._toggle_selection_mode)
 
         @self.viewer_model.bind_key('Left', overwrite=True)
         def _decrease_frame(event):
@@ -212,7 +213,7 @@ class FrameReader(QWidget):
     def _change_id_on_dialog(self, event):
         if not self.show_bboxes_checkbox.isChecked():
             return
-        self.update_coords()
+        self._update_coords()
         change_id_dialog = IdChanger(self.viz, 
                                      self.viz.root_widget, 
                                      self.viewer_model,
