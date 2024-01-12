@@ -12,9 +12,10 @@ from qtpy.QtWidgets import (
     QDialog,
     QLineEdit,
     QMessageBox,
+    QPushButton,
+    QVBoxLayout,
     )
 from qtpy.QtGui import QIntValidator
-
 
 from napari.layers import Shapes
 from napari.layers.shapes._shapes_constants import Mode
@@ -23,15 +24,22 @@ from napari_spine_tracker.tabs.multi_view  import  QtViewerWrap
 from superqt import QRangeSlider
 from napari.utils.action_manager import action_manager
 
-import pandas as pd
+import matplotlib.pyplot as plt
+
 
 TEXT_PARAMS =   {
                 'string': 'id',
                 'size': 8,
-                'color': 'yellow',
+                'color': 'blue',
                 'anchor': 'upper_left',
                 'translation': [-1, 1],
                 }
+
+# use cmap from matplotlib
+cmap = plt.cm.get_cmap('tab20')
+# convert to rbg
+COLORS = [cmap(i)[:3] for i in range(20)]
+# COLORS = [(int(cmap(i)[0]*255), int(cmap(i)[1]*255), int(cmap(i)[2]*255)) for i in range(20)]
 
 class FrameReader(QWidget):
     """
@@ -127,6 +135,8 @@ class FrameReader(QWidget):
         self.frame_slider.setValue(frame)
         self.frame_text.setText(f'Frame number: {frame+1} | Total frames: {len(self.filenames)}')
         self.frame_num = frame
+        # use drawn coordinates to update data in case user has changed them
+        # self._update_coords()
         self.remove_bboxes()
         self.extract_data_to_draw()
         self.show_bboxes_in_frame()
@@ -146,6 +156,7 @@ class FrameReader(QWidget):
     
     def extract_data_to_draw(self):
         data = self.viz.manager.get_data()
+        self.viz.change_next_new_id(data['id'].max() + 1)
         self.objs = data[data['filename'].str.contains(self.filenames[self.frame_num])]
         self.ids = [str(id) for id in self.objs['id'].values]
         self.coords = [
@@ -156,10 +167,8 @@ class FrameReader(QWidget):
         self.ids_other_tp = np.unique(data[~data['filename'].str.contains(self.tp_name)]['id'].values)
         self.ids_both_tps = np.intersect1d(self.ids_this_tp, self.ids_other_tp)
 
-        # self.filenames_per_id = [np.unique([f for f in data[data['id']==curr_id]['filename'].values])  
-        #                       for curr_id in self.ids]
-        # self.id_in_both_tps = [list(np.unique([f.split('tp')[1][0] for f in fid])) for fid in self.filenames_per_id]
-        self.colors = ['green' if int(id) in self.ids_both_tps else 'red' for id in self.ids]
+        # yellow if id not in both
+        self.colors = [COLORS[int(id)%20] if int(id) in self.ids_both_tps else (1, 0, 1) for id in self.ids]
         
     def repaint_bboxes(self):
         if self.shapes_layer is not None:
@@ -173,6 +182,7 @@ class FrameReader(QWidget):
 
     def remove_bboxes(self):
         if self.shapes_layer is not None:
+            self._update_coords()
             self.viewer_model.layers.remove(self.shapes_layer)
             self.shapes_layer = None
 
@@ -202,11 +212,13 @@ class FrameReader(QWidget):
     def _change_id_on_dialog(self, event):
         if not self.show_bboxes_checkbox.isChecked():
             return
+        self.update_coords()
         change_id_dialog = IdChanger(self.viz, 
                                      self.viz.root_widget, 
                                      self.viewer_model,
                                      self.shapes_layer)
         change_id_dialog.exec_()
+        # self._update_coords()
         self.extract_data_to_draw()
         self.repaint_bboxes()
     
@@ -221,6 +233,7 @@ class FrameReader(QWidget):
             self.viz.selection_mode.setChecked(True)
         
         # activate add rectangle mode
+        self._update_coords()
         layer_name = 'bboxes_' + self.filenames[self.frame_num]
         if self.shapes_layer is None:
             self.shapes_layer = self.viewer_model.add_shapes(name=layer_name,
@@ -270,6 +283,7 @@ class FrameReader(QWidget):
             print("No rectangle selected")
             return
         
+        self._update_coords()
         fn = self.shapes_layer.name.split('bboxes_')[1]
         ids_to_remove = self.shapes_layer.features['id'].values[list(self.shapes_layer.selected_data)].astype(str)
         data = self.viz.manager.get_data()
@@ -281,6 +295,13 @@ class FrameReader(QWidget):
 
         self.extract_data_to_draw()
         self.repaint_bboxes()
+    
+    def _update_coords(self):
+        if self.shapes_layer is not None:
+            self.viz.manager.update_coords(self.shapes_layer.name,
+                                            self.shapes_layer.data, 
+                                            self.shapes_layer.features['id'].values)
+            self.extract_data_to_draw()
     
     def _decrease_frame(self, event):
         if self.frame_num > 0:
@@ -326,6 +347,12 @@ class IdChanger(QDialog):
         self.text_id.setValidator(QIntValidator())
         self.text_id.setFocus()
         self.text_id.returnPressed.connect(self._check_valid_id)
+
+        # add info about next new id
+        self.info_next_new_id = QLabel(f'Next new ID: {self.viz.next_new_id}')
+        self.info_next_new_id.setAlignment(Qt.AlignCenter)
+        main_layout.addWidget(self.info_next_new_id)
+
         # use Esc to cancel
         # self.text_id.keyPressEvent = lambda event: self.close() if event.key() == Qt.Key_Escape else None
         main_layout.addWidget(self.text_id)
@@ -351,7 +378,7 @@ class IdChanger(QDialog):
             fn = self.shapes_layer.name.split('bboxes_')[1]
             data = self.viz.manager.get_data()
             idx_row = data[
-                (data['filename'] == fn) &
+                (data['filename'].str.contains(fn)) &
                 (data['id'].astype(str) == str(self.id_to_change))
             ].index
             self.viz.manager.change_id(idx_row, int(new_id))
@@ -379,6 +406,9 @@ class TrackletVisualizer:
         self.filenames_t1 = [f for f in self.all_filenames if filter_t1 in f]
         self.filenames_t2 = [f for f in self.all_filenames if filter_t2 in f]
 
+        data = self.manager.get_data()
+        self.next_new_id = np.max(data['id'].values) + 1
+
         if len(self.all_filenames) == 0:
             print("No images found in the selected folder")
             return
@@ -386,6 +416,27 @@ class TrackletVisualizer:
             self.curr_stack = self.all_filenames[0].split('_layer')[0]
         
         self._prepare_visualizer()
+        self._create_initial_widgets()
+
+    def _create_initial_widgets(self):
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(self._save)
+        help_btn = QPushButton("Help")
+        help_btn.clicked.connect(self.manager.help)
+
+        h_layout = QHBoxLayout()
+        h_layout.addStretch()
+
+        for i, btn in enumerate([save_btn, help_btn]):
+            btn.setFixedHeight(50)
+            btn.setFixedWidth(200)
+            btn.setStyleSheet('font-size: 20px;')
+            h_layout.addWidget(btn, alignment=Qt.AlignCenter)
+            if i != len([save_btn, help_btn]) - 1:
+                h_layout.addSpacing(10)
+
+        h_layout.addStretch()
+        self.root_widget.layout.addLayout(h_layout)
 
     def _prepare_visualizer(self):
         self.viewer_model1 = ViewerModel(title="model1")
@@ -425,7 +476,12 @@ class TrackletVisualizer:
         h_layout.addStretch(1)
         self.root_widget.layout.addLayout(h_layout)
         self.root_widget.layout.addWidget(toolbar_splitter)
-    
+
+    def _save(self):
+        self.frame_reader1._update_coords()
+        self.frame_reader2._update_coords()
+        self.manager.save()
+
     def _toggle_synchronize(self, state):
         if state == Qt.Checked:
             self.frame_reader1.frame_slider.valueChanged.connect(self.frame_reader2.set_frame)
@@ -442,3 +498,6 @@ class TrackletVisualizer:
                     fr.shapes_layer.mode = Mode.SELECT
                 else:
                     fr.shapes_layer.mode = Mode.PAN_ZOOM
+    
+    def change_next_new_id(self, next_new_id):
+        self.next_new_id = next_new_id

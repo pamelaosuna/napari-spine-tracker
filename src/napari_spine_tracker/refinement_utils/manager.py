@@ -18,28 +18,6 @@ class TrackletManager:
         self.data = None
         self.unq_filenames = None
         self.n_frames = None
-
-        self._create_initial_widgets()
-
-    def _create_initial_widgets(self):
-        save_btn = QPushButton("Save")
-        save_btn.clicked.connect(self.save)
-        help_btn = QPushButton("Help")
-        help_btn.clicked.connect(self.help)
-
-        h_layout = QHBoxLayout()
-        h_layout.addStretch()
-
-        for i, btn in enumerate([save_btn, help_btn]):
-            btn.setFixedHeight(50)
-            btn.setFixedWidth(200)
-            btn.setStyleSheet('font-size: 20px;')
-            h_layout.addWidget(btn, alignment=Qt.AlignCenter)
-            if i != len([save_btn, help_btn]) - 1:
-                h_layout.addSpacing(10)
-
-        h_layout.addStretch()
-        self.root_widget.layout.addLayout(h_layout)
     
     def _load_unq_filenames(self):
         self.unq_filenames = np.unique([os.path.basename(f) for f in self.data['filename'].values])
@@ -89,6 +67,16 @@ class TrackletManager:
     
     def change_id(self, idx_row, new_id):
         self.data.loc[idx_row, 'id'] = new_id
+    
+    def update_coords(self, img_filename, shapes_layer_data, ids):
+        data_img = self.data[self.data['filename'].str.contains(img_filename.split('bboxes_')[1])]
+        rows_idxs = data_img[data_img['id'].isin(ids.astype(int))].index
+        ymins, xmins = np.array(shapes_layer_data).min(axis=1).T
+        ymaxs, xmaxs = np.array(shapes_layer_data).max(axis=1).T
+        self.data.loc[rows_idxs, 'xmin'] = xmins
+        self.data.loc[rows_idxs, 'xmax'] = xmaxs
+        self.data.loc[rows_idxs, 'ymin'] = ymins
+        self.data.loc[rows_idxs, 'ymax'] = ymaxs
 
     def get_data(self):
         return self.data
