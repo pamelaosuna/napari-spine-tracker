@@ -1,8 +1,7 @@
-import os, glob
+import os
 import numpy as np
 from skimage import io
-from qtpy.QtWidgets import QSplitter, QVBoxLayout, QHBoxLayout
-from qtpy.QtWidgets import QSplitter
+from qtpy.QtWidgets import QVBoxLayout
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QSlider,
@@ -12,7 +11,6 @@ from qtpy.QtWidgets import (
     QDialog,
     QLineEdit,
     QMessageBox,
-    QPushButton,
     QVBoxLayout,
     )
 from qtpy.QtGui import QIntValidator
@@ -20,7 +18,6 @@ from qtpy.QtGui import QIntValidator
 from napari.layers import Shapes
 from napari.layers.shapes._shapes_constants import Mode
 from napari.components.viewer_model import ViewerModel
-from napari_spine_tracker.tabs.multi_view  import  QtViewerWrap
 from superqt import QRangeSlider
 from napari.utils.action_manager import action_manager
 
@@ -43,8 +40,7 @@ COLORS = [cmap(i)[:3] for i in range(20)]
 
 class FrameReader(QWidget):
     """
-    Dummy widget showcasing how to place additional widgets to the right
-    of the additional viewers. # TODO: rewrite
+    Manages the direct interaction with the rendered frames and the bounding boxes
     """
     def __init__(self, viz, viewer_model: ViewerModel, img_dir: str, filenames: list, tp_name: str):
         super().__init__()
@@ -74,6 +70,8 @@ class FrameReader(QWidget):
         self.viewer_model.bind_key('Backspace', self._delete_shape)
         self.viewer_model.bind_key('Delete', self._delete_shape)
         self.viewer_model.bind_key('S', self.viz._toggle_selection_mode)
+        self.viewer_model.bind_key('H', self.viz._help)
+        self.viewer_model.bind_key('Escape', self._toggle_selection_mode)
 
         @self.viewer_model.bind_key('Left', overwrite=True)
         def _decrease_frame(event):
@@ -213,7 +211,8 @@ class FrameReader(QWidget):
     def _change_id_on_dialog(self, event):
         if not self.show_bboxes_checkbox.isChecked():
             return
-        self._update_coords()
+        if not 'nan' in self.shapes_layer.features['id'].values:
+            self._update_coords()
         change_id_dialog = IdChanger(self.viz, 
                                      self.viz.root_widget, 
                                      self.viewer_model,
@@ -385,120 +384,3 @@ class IdChanger(QDialog):
             self.viz.manager.change_id(idx_row, int(new_id))
             self.shapes_layer.mode = Mode.SELECT
             self.close()
-            
-class TrackletVisualizer:
-    def __init__(self, 
-                 root_plugin_widget, 
-                 manager, 
-                 img_dir,
-                 filter_t1='_tp1_', #None,
-                 filter_t2='_tp2_' # None
-                 ):
-        # print("TrackletVisualizer created")
-        self.root_widget = root_plugin_widget
-        self.img_dir = img_dir
-        self.manager = manager
-        
-        self.stack_names = np.unique([f.split('_layer')[0] for f in self.manager.get_unq_filenames()])
-        all_filenames = []
-        for sn in self.stack_names:
-            all_filenames += list(glob.glob(os.path.join(self.img_dir, f"{sn}_layer*.png")))
-        self.all_filenames = sorted([os.path.basename(f) for f in all_filenames])
-        self.filenames_t1 = [f for f in self.all_filenames if filter_t1 in f]
-        self.filenames_t2 = [f for f in self.all_filenames if filter_t2 in f]
-
-        data = self.manager.get_data()
-        self.next_new_id = np.max(data['id'].values) + 1
-
-        if len(self.all_filenames) == 0:
-            print("No images found in the selected folder")
-            return
-        else:
-            self.curr_stack = self.all_filenames[0].split('_layer')[0]
-        
-        self._prepare_visualizer()
-        self._create_initial_widgets()
-
-    def _create_initial_widgets(self):
-        save_btn = QPushButton("Save")
-        save_btn.clicked.connect(self._save)
-        help_btn = QPushButton("Help")
-        help_btn.clicked.connect(self.manager.help)
-
-        h_layout = QHBoxLayout()
-        h_layout.addStretch()
-
-        for i, btn in enumerate([save_btn, help_btn]):
-            btn.setFixedHeight(50)
-            btn.setFixedWidth(200)
-            btn.setStyleSheet('font-size: 20px;')
-            h_layout.addWidget(btn, alignment=Qt.AlignCenter)
-            if i != len([save_btn, help_btn]) - 1:
-                h_layout.addSpacing(10)
-
-        h_layout.addStretch()
-        self.root_widget.layout.addLayout(h_layout)
-
-    def _prepare_visualizer(self):
-        self.viewer_model1 = ViewerModel(title="model1")
-        self.viewer_model2 = ViewerModel(title="model2")
-        self.qt_viewer1 = QtViewerWrap(self.root_widget.viewer, self.viewer_model1)
-        self.qt_viewer2 = QtViewerWrap(self.root_widget.viewer, self.viewer_model2)
-        self.frame_reader1 = FrameReader(self, self.viewer_model1, self.img_dir, self.filenames_t1, 'tp1')
-        self.frame_reader2 = FrameReader(self, self.viewer_model2, self.img_dir, self.filenames_t2, 'tp2')
-        
-        toolbar_splitter = QSplitter()
-        toolbar_splitter.setOrientation(Qt.Horizontal)
-        toolbar_splitter.addWidget(self.frame_reader1)
-        toolbar_splitter.addWidget(self.frame_reader2)
-        toolbar_splitter.setContentsMargins(0, 0, 0, 0)
-        
-        viewer_splitter = QSplitter()
-        viewer_splitter.setOrientation(Qt.Horizontal)
-        viewer_splitter.addWidget(self.qt_viewer1)
-        viewer_splitter.addWidget(self.qt_viewer2)
-        viewer_splitter.setContentsMargins(0, 0, 0, 0)
-
-        self.sync_checkbox = QCheckBox("Synchronize frame number")
-        self.sync_checkbox.stateChanged.connect(self._toggle_synchronize)
-        self.sync_checkbox.setChecked(False)
-
-        self.selection_mode = QCheckBox("Selection mode")
-        self.selection_mode.stateChanged.connect(self._toggle_selection_mode)
-        self.selection_mode.setChecked(False)
-
-        self.root_widget.layout.addWidget(viewer_splitter)
-        self.root_widget.layout.setSpacing(0)
-
-        h_layout = QHBoxLayout()
-        h_layout.addStretch(1)
-        for w in [self.sync_checkbox, self.selection_mode]:
-            h_layout.addWidget(w, alignment=Qt.AlignCenter)
-        h_layout.addStretch(1)
-        self.root_widget.layout.addLayout(h_layout)
-        self.root_widget.layout.addWidget(toolbar_splitter)
-
-    def _save(self):
-        self.frame_reader1._update_coords()
-        self.frame_reader2._update_coords()
-        self.manager.save()
-
-    def _toggle_synchronize(self, state):
-        if state == Qt.Checked:
-            self.frame_reader1.frame_slider.valueChanged.connect(self.frame_reader2.set_frame)
-            self.frame_reader2.frame_slider.valueChanged.connect(self.frame_reader1.set_frame)
-        else:
-            self.frame_reader1.frame_slider.valueChanged.disconnect(self.frame_reader2.set_frame)
-            self.frame_reader2.frame_slider.valueChanged.disconnect(self.frame_reader1.set_frame)
-    
-    def _toggle_selection_mode(self, state):
-        for fr in [self.frame_reader1, self.frame_reader2]:
-            shapes_layer_name = fr.get_shapes_layer_name()
-            if fr.show_bboxes_checkbox.isChecked() and shapes_layer_name is not None:
-                if state == Qt.Checked:            
-                    fr.shapes_layer.mode = Mode.SELECT
-                else:
-                    fr.shapes_layer.mode = Mode.PAN_ZOOM
-    
-    def change_next_new_id(self, next_new_id):
-        self.next_new_id = next_new_id

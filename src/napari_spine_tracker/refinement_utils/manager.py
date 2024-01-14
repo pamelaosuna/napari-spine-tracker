@@ -3,11 +3,8 @@ import numpy as np
 import pandas as pd
 
 from qtpy.QtWidgets import (
-    QPushButton,
-    QHBoxLayout,
     QMessageBox
 )
-from qtpy.QtCore import Qt
 
 class TrackletManager:
     def __init__(self,

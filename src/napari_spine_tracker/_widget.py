@@ -119,7 +119,7 @@ class TrackingCurationWidget(QWidget):
         for _ in range(3):
             self.layout.removeWidget(self.layout.itemAt(0).widget())
 
-        self.refine_timetracking = RefineTimeTracking(self)
+        self.refine_timetracking = RefineTracking(self)
 
 if __name__ == '__main__':
     viewer = napari.Viewer()
