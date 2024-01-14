@@ -110,9 +110,8 @@ class MultiViewer:
         for sn in self.stack_names:
             all_filenames += list(glob.glob(os.path.join(self.img_dir, f"{sn}_layer*.png")))
         self.all_filenames = sorted([os.path.basename(f) for f in all_filenames])
-        if filter_t1 is None and filter_t2 is None:
-            self.filenames_t1 = [f for f in self.all_filenames if filter_t1 in f]
-            self.filenames_t2 = [f for f in self.all_filenames if filter_t2 in f]
+        self.filenames_t1 = [f for f in self.all_filenames if filter_t1 in f]
+        self.filenames_t2 = [f for f in self.all_filenames if filter_t2 in f]
 
     def _save(self):
         for fr in self.frame_readers:
@@ -146,14 +145,35 @@ class SingleViewer(MultiViewer):
                  manager, 
                  img_dir,
                  ):
-        super().__init__(root_plugin_widget, manager, 
-                         img_dir, None, None)
+        # # print("MultiViewer created")
+        self.root_widget = root_plugin_widget
+        self.img_dir = img_dir
+        self.manager = manager
+        
+        self.stack_names = np.unique([f.split('_layer')[0] for f in self.manager.get_unq_filenames()])
+        
+        self._extract_filenames_by_tp()
+        data = self.manager.get_data()
+        self.next_new_id = np.max(data['id'].values) + 1
+
+        if len(self.all_filenames) == 0:
+            print("No images found in the selected folder")
+            return
+        else:
+            self.curr_stack = self.all_filenames[0].split('_layer')[0]
+        
+        self._prepare_visualizer()
+        self._create_initial_widgets()
     
     # override the _prepare_visualizer method
     def _prepare_visualizer(self):
         self.viewer_model1 = ViewerModel(title="model1")
-        self.qt_viewer1 = QtViewerWrap(self.root_widget.viewer, self.viewer_model1)
-        self.frame_reader1 = FrameReader(self, self.viewer_model1, self.img_dir, self.filenames_t1, 'tp1')
+        self.qt_viewer1 = QtViewerWrap(self.root_widget.viewer, 
+                                       self.viewer_model1)
+        self.frame_reader1 = FrameReader(self, self.viewer_model1, 
+                                         self.img_dir, 
+                                         self.all_filenames,
+                                         tp_name=None)
 
         self.frame_readers = [self.frame_reader1]
         
@@ -186,6 +206,13 @@ class SingleViewer(MultiViewer):
         h_layout.addStretch(1)
         self.root_widget.layout.addLayout(h_layout)
         self.root_widget.layout.addWidget(toolbar_splitter)
+    
+    def _extract_filenames_by_tp(self):
+        all_filenames = []
+        for sn in self.stack_names:
+            all_filenames += list(glob.glob(os.path.join(self.img_dir, f"{sn}_layer*.png")))
+        self.all_filenames = sorted([os.path.basename(f) for f in all_filenames])
+
 
 
         

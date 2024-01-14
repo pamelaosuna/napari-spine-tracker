@@ -61,6 +61,8 @@ class FrameReader(QWidget):
                                 'napari:activate_add_path_mode',
                                 'napari:activate_add_polygon_mode',
                                 'napari:delete_selected_shapes',
+                                # 'napari:activate_points_select_mode',
+                                # 'napari:activate_select_mode',
         ]
         for s in shortcuts_to_unbind:
             action_manager.unbind_shortcut(s)
@@ -70,8 +72,7 @@ class FrameReader(QWidget):
         self.viewer_model.bind_key('Backspace', self._delete_shape)
         self.viewer_model.bind_key('Delete', self._delete_shape)
         self.viewer_model.bind_key('S', self.viz._toggle_selection_mode)
-        self.viewer_model.bind_key('H', self.viz._help)
-        self.viewer_model.bind_key('Escape', self._toggle_selection_mode)
+        self.viewer_model.bind_key('Escape', self.viz._toggle_selection_mode)
 
         @self.viewer_model.bind_key('Left', overwrite=True)
         def _decrease_frame(event):
@@ -162,13 +163,15 @@ class FrameReader(QWidget):
                 [[ymin, xmin], [ymin, xmax], [ymax, xmax], [ymax, xmin]] 
                       for ymin, xmin, ymax, xmax in self.objs[['ymin', 'xmin', 'ymax', 'xmax']].values
                       ]
-        self.ids_this_tp = np.unique(data[data['filename'].str.contains(self.tp_name)]['id'].values)
-        self.ids_other_tp = np.unique(data[~data['filename'].str.contains(self.tp_name)]['id'].values)
-        self.ids_both_tps = np.intersect1d(self.ids_this_tp, self.ids_other_tp)
+        if self.tp_name is not None:
+            self.ids_this_tp = np.unique(data[data['filename'].str.contains(self.tp_name)]['id'].values)
+            self.ids_other_tp = np.unique(data[~data['filename'].str.contains(self.tp_name)]['id'].values)
+            self.ids_both_tps = np.intersect1d(self.ids_this_tp, self.ids_other_tp)
+            self.colors = [COLORS[int(id)%20] if int(id) in self.ids_both_tps else (1, 0, 1) for id in self.ids]
+        else:
+            self.ids_both_tps = []
+            self.colors = [COLORS[int(id)%20] for id in self.ids]
 
-        # yellow if id not in both
-        self.colors = [COLORS[int(id)%20] if int(id) in self.ids_both_tps else (1, 0, 1) for id in self.ids]
-        
     def repaint_bboxes(self):
         if self.shapes_layer is not None:
             self.viewer_model.layers.remove(self.shapes_layer)
