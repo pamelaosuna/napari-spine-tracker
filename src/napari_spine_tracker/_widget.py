@@ -97,9 +97,9 @@ class TrackingCurationWidget(QWidget):
         new_project.show()
 
     def set_default_dirs(self):
-        self.csv_dir_default = os.path.join(os.getcwd(), '..', '..', 'Documents/spines/data/bens_data/results/lr_0.001_warmup_None_momentum_0.6_L2_None_union/time_tracking') #'eval_ttrack')
-        self.img_dir_default = os.path.join(os.getcwd(), '..',  '..', 'Documents', 'spines', 'data', 'bens_data', 'processed', 'img_512') # , 'subs') #, "..", "benzo_pipeline", "A1_preprocessed", "8bit", "subs")
-        self.filepath_default = os.path.join(self.csv_dir_default, 'date040822_stack1_sub11_timetracked.csv') # "aidv853_date220321_stack0_sub12.csv")
+        self.csv_dir_default = os.path.join(os.getcwd(), '..', '..', 'Documents/spines/data/bens_data/results/lr_0.001_warmup_None_momentum_0.6_L2_None_union/time_tracking') #'eval_ttrack') # 'Documents/spines/data/data_train_test_val/annotations_simonsdata/') 
+        self.img_dir_default = os.path.join(os.getcwd(), '..',  '..', 'Documents', 'spines', 'data', 'bens_data', 'processed', 'img_512') # , 'subs') #, "..", "benzo_pipeline", "A1_preprocessed", "8bit", "subs") 'Documents/spines/data/data_train_test_val/images_simonsdata/aid052N1D1_stack3/') #
+        self.filepath_default = os.path.join(self.csv_dir_default, 'date040822_stack1_sub11_timetracked.csv') # "aidv853_date220321_stack0_sub12.csv") # 'aid052N1D1_tp1_stack3.csv')
         
         
     def _update_loaded_state(self, loaded, filepath, img_dir):

@@ -162,7 +162,7 @@ class RefineTracking(QWidget):
         self.launched = launched
 
         if launched:
-            for _ in range(2):
+            for _ in range(3):
                 self.root.layout.removeWidget(self.root.layout.itemAt(0).widget())
         
 

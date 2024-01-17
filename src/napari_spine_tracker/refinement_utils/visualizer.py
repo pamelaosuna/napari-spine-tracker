@@ -23,11 +23,10 @@ from napari.utils.action_manager import action_manager
 
 import matplotlib.pyplot as plt
 
-
 TEXT_PARAMS =   {
                 'string': 'id',
-                'size': 8,
-                'color': 'blue',
+                'size': 10,
+                'color': 'blue', # 'red', 
                 'anchor': 'upper_left',
                 'translation': [-1, 1],
                 }
@@ -71,8 +70,8 @@ class FrameReader(QWidget):
         self.viewer_model.bind_key('i', self._change_id_on_dialog)
         self.viewer_model.bind_key('Backspace', self._delete_shape)
         self.viewer_model.bind_key('Delete', self._delete_shape)
-        self.viewer_model.bind_key('S', self.viz._toggle_selection_mode)
-        self.viewer_model.bind_key('Escape', self.viz._toggle_selection_mode)
+        self.viewer_model.bind_key('S', self._change_selection_mode_status)
+        self.viewer_model.bind_key('Escape', self._cancel_action)
 
         @self.viewer_model.bind_key('Left', overwrite=True)
         def _decrease_frame(event):
@@ -89,6 +88,7 @@ class FrameReader(QWidget):
         # bbox data
         self.extract_data_to_draw()
         self.shapes_layer = None
+        self.id_changer = None
 
     def _prepare_reader(self):
         init_frame_val = 0
@@ -216,11 +216,12 @@ class FrameReader(QWidget):
             return
         if not 'nan' in self.shapes_layer.features['id'].values:
             self._update_coords()
-        change_id_dialog = IdChanger(self.viz, 
+        self.id_changer = IdChanger(self.viz, 
                                      self.viz.root_widget, 
                                      self.viewer_model,
                                      self.shapes_layer)
-        change_id_dialog.exec_()
+        self.id_changer.exec_()
+        self.id_changer = None
         # self._update_coords()
         self.extract_data_to_draw()
         self.repaint_bboxes()
@@ -318,7 +319,17 @@ class FrameReader(QWidget):
         if self.shapes_layer is None:
             return None
         return self.shapes_layer.name
-            
+    
+    def _cancel_action(self, event):
+        if self.id_changer is not None:
+            self.id_changer.close()
+            self.id_changer = None
+        elif self.shapes_layer is not None and self.shapes_layer.mode == Mode.ADD_RECTANGLE:
+            self.shapes_layer.mode = Mode.SELECT
+        
+    def _change_selection_mode_status(self, event):
+        if self.shapes_layer is not None:
+            self.viz.selection_mode.setChecked(not self.viz.selection_mode.isChecked())
 class IdChanger(QDialog):
     def __init__(self,
                  viz,
