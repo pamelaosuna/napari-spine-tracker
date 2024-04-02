@@ -3,8 +3,24 @@ from qtpy.QtCore import Qt
 
 import os
 
-from napari_spine_tracker.refinement_utils.manager import TrackletManager
+from napari_spine_tracker.refinement_utils.manager import TrackletManager, DetectionManager
 from napari_spine_tracker.refinement_utils.multi_viewer import MultiViewer, SingleViewer
+
+def refine_detections(root_widget,
+                      datafile,
+                      img_dir):
+    manager = DetectionManager(root_widget)
+    if datafile.endswith(".csv"):
+        manager.load_tracklets_from_csv(datafile)
+    else:
+        print("File type not supported, please select a .csv file")
+        return None
+    viz = SingleViewer(root_widget,
+                        manager, 
+                        img_dir,
+                        detection_refinement=True,
+                        )
+    return manager, viz
 
 def refine_time_tracklets(root_widget,
                          datafile, 
@@ -109,6 +125,9 @@ class RefineTracking(QWidget):
         return self.root.img_dir
     
     def _set_page(self):
+        launch_detection_btn = QPushButton("Launch detection refinement")
+        launch_detection_btn.clicked.connect(self._launch_refinement_detection)
+
         launch_depthtracking_btn = QPushButton("Launch depth-tracking refinement")
         launch_depthtracking_btn.clicked.connect(self._launch_refinement_across_depth)
 
@@ -118,7 +137,8 @@ class RefineTracking(QWidget):
         set_tp_filters_btn = QPushButton("Set timepoint filters")
         set_tp_filters_btn.clicked.connect(self._set_tp_filters)
        
-        for btn in [launch_depthtracking_btn, launch_timetracking_btn, set_tp_filters_btn]:
+        for btn in [launch_detection_btn, launch_depthtracking_btn, 
+                    launch_timetracking_btn, set_tp_filters_btn]:
             btn.setFixedHeight(50)
             btn.setFixedWidth(350)
             btn.setStyleSheet("font-size: 20px;")
@@ -156,6 +176,16 @@ class RefineTracking(QWidget):
         self.manager, self.viz = refine_depth_tracklets(self.root,
                                                        datafile,
                                                        img_dir)
+    
+    def _launch_refinement_detection(self):
+        print("Launching refinement")
+        datafile = self.filepath
+        img_dir = self.img_dir
+        
+        self._update_launched_state(True)
+        self.manager, self.viz = refine_detections(self.root,
+                                                    datafile,
+                                                    img_dir)
     
     def _update_launched_state(self, launched):
         print("Updating viewer state")

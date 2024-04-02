@@ -6,7 +6,7 @@ from qtpy.QtWidgets import (
     QMessageBox
 )
 
-class TrackletManager:
+class DetectionManager:
     def __init__(self,
                  root_widget):
         # print("TrackletManager created")
@@ -62,18 +62,14 @@ class TrackletManager:
     def remove_tracklet(self, row_idxs):
         self.data = self.data.drop(row_idxs)
     
-    def change_id(self, idx_row, new_id):
-        self.data.loc[idx_row, 'id'] = new_id
-    
-    def update_coords(self, img_filename, shapes_layer_data, ids):
+    def update_coords(self, img_filename, shapes_layer_data):
         data_img = self.data[self.data['filename'].str.contains(img_filename.split('bboxes_')[1])]
-        rows_idxs = data_img[data_img['id'].isin(ids.astype(int))].index
         ymins, xmins = np.array(shapes_layer_data).min(axis=1).T
         ymaxs, xmaxs = np.array(shapes_layer_data).max(axis=1).T
-        self.data.loc[rows_idxs, 'xmin'] = xmins
-        self.data.loc[rows_idxs, 'xmax'] = xmaxs
-        self.data.loc[rows_idxs, 'ymin'] = ymins
-        self.data.loc[rows_idxs, 'ymax'] = ymaxs
+        self.data.loc[data_img.index, 'xmin'] = np.around(xmins)
+        self.data.loc[data_img.index, 'xmax'] = np.around(xmaxs)
+        self.data.loc[data_img.index, 'ymin'] = np.around(ymins)
+        self.data.loc[data_img.index, 'ymax'] = np.around(ymaxs)
 
     def get_data(self):
         return self.data
@@ -81,4 +77,20 @@ class TrackletManager:
     def get_unq_filenames(self):
         self._load_unq_filenames()
         return self.unq_filenames
+    
+class TrackletManager(DetectionManager):
+    # everything is the same as DetectionManager, except that update_coords is overridden
+    def update_coords(self, img_filename, shapes_layer_data, ids):
+        data_img = self.data[self.data['filename'].str.contains(img_filename.split('bboxes_')[1])]
+        rows_idxs = data_img[data_img['id'].isin(ids.astype(int))].index
+        ymins, xmins = np.array(shapes_layer_data).min(axis=1).T
+        ymaxs, xmaxs = np.array(shapes_layer_data).max(axis=1).T
+        self.data.loc[rows_idxs, 'xmin'] = np.around(xmins)
+        self.data.loc[rows_idxs, 'xmax'] = np.around(xmaxs)
+        self.data.loc[rows_idxs, 'ymin'] = np.around(ymins)
+        self.data.loc[rows_idxs, 'ymax'] = np.around(ymaxs)
+    
+    def change_id(self, idx_row, new_id):
+        self.data.loc[idx_row, 'id'] = new_id
+
         

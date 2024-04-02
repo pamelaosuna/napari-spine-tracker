@@ -144,6 +144,7 @@ class SingleViewer(MultiViewer):
                  root_plugin_widget, 
                  manager, 
                  img_dir,
+                 detection_refinement=False,
                  ):
         # # print("MultiViewer created")
         self.root_widget = root_plugin_widget
@@ -154,7 +155,8 @@ class SingleViewer(MultiViewer):
         
         self._extract_filenames_by_tp()
         data = self.manager.get_data()
-        self.next_new_id = np.max(data['id'].values) + 1
+        if not detection_refinement:
+            self.next_new_id = np.max(data['id'].values) + 1 # here
 
         if len(self.all_filenames) == 0:
             print("No images found in the selected folder")
@@ -173,7 +175,8 @@ class SingleViewer(MultiViewer):
         self.frame_reader1 = FrameReader(self, self.viewer_model1, 
                                          self.img_dir, 
                                          self.all_filenames,
-                                         tp_name=None)
+                                         tp_name=None,
+                                         )
 
         self.frame_readers = [self.frame_reader1]
         
