@@ -12,7 +12,7 @@ from qtpy.QtWidgets import (
 
 from napari_spine_tracker.tabs.multi_view  import  QtViewerWrap
 from napari.components.viewer_model import ViewerModel
-from napari_spine_tracker.refinement_utils.visualizer import FrameReader
+from napari_spine_tracker.refinement_utils.visualizer import FrameReader, FrameReaderWithIDs
 from napari.layers.shapes._shapes_constants import Mode
 from qtpy.QtCore import Qt
 
@@ -150,12 +150,13 @@ class SingleViewer(MultiViewer):
         self.root_widget = root_plugin_widget
         self.img_dir = img_dir
         self.manager = manager
+        self.detection_ref = detection_refinement
         
         self.stack_names = np.unique([f.split('_layer')[0] for f in self.manager.get_unq_filenames()])
         
         self._extract_filenames_by_tp()
         data = self.manager.get_data()
-        if not detection_refinement:
+        if not self.detection_ref:
             self.next_new_id = np.max(data['id'].values) + 1 # here
 
         if len(self.all_filenames) == 0:
@@ -172,7 +173,14 @@ class SingleViewer(MultiViewer):
         self.viewer_model1 = ViewerModel(title="model1")
         self.qt_viewer1 = QtViewerWrap(self.root_widget.viewer, 
                                        self.viewer_model1)
-        self.frame_reader1 = FrameReader(self, self.viewer_model1, 
+        if self.detection_ref:
+            self.frame_reader1 = FrameReader(self, self.viewer_model1, 
+                                         self.img_dir, 
+                                         self.all_filenames,
+                                         tp_name=None,
+                                         )
+        else:
+            self.frame_reader1 = FrameReaderWithIDs(self, self.viewer_model1, 
                                          self.img_dir, 
                                          self.all_filenames,
                                          tp_name=None,

@@ -3,13 +3,13 @@ from qtpy.QtCore import Qt
 
 import os
 
-from napari_spine_tracker.refinement_utils.manager import TrackletManager, DetectionManager
+from napari_spine_tracker.refinement_utils.manager import TrackletManager
 from napari_spine_tracker.refinement_utils.multi_viewer import MultiViewer, SingleViewer
 
 def refine_detections(root_widget,
                       datafile,
                       img_dir):
-    manager = DetectionManager(root_widget)
+    manager = TrackletManager(root_widget)
     if datafile.endswith(".csv"):
         manager.load_tracklets_from_csv(datafile)
     else:
