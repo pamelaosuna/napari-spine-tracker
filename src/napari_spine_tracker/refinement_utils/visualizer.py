@@ -41,7 +41,9 @@ class FrameReader(QWidget):
         self.img_dir = img_dir
         self.filenames = filenames
         self.text_params = None
+        self.img = None
 
+        # self._load_image()
         self._prepare_reader()
 
         shortcuts_to_unbind= ['napari:activate_add_line_mode',
@@ -90,9 +92,10 @@ class FrameReader(QWidget):
         self._old_frame = None
         self.frame_num = init_frame_val
 
-        self._load_images()
-        self.viewer_model.add_image(self.imgs[init_frame_val], 
-                                    name=self.filenames[init_frame_val])
+        # self._load_images()
+        self._load_image(self.frame_num)
+        self.viewer_model.add_image(self.img, 
+                                    name=self.filenames[self.frame_num])
 
         self.frame_slider = QSlider(Qt.Horizontal)
         self.frame_slider.setRange(0, len(self.filenames)-1)
@@ -125,7 +128,8 @@ class FrameReader(QWidget):
         self._old_frame = self.frame_num
         # TODO: before updating data, check that no id is repeated, and if so, ask the user to change it
         self.viewer_model.layers.remove(self.filenames[self.frame_num])
-        self.viewer_model.add_image(self.imgs[frame], name=self.filenames[frame])
+        self._load_image(frame)
+        self.viewer_model.add_image(self.img, name=self.filenames[frame])
         self.frame_slider.setValue(frame)
         self.frame_text.setText(f'Frame number: {frame+1} | Total frames: {len(self.filenames)}')
         self.frame_num = frame
@@ -135,6 +139,14 @@ class FrameReader(QWidget):
         self.extract_data_to_draw()
         self.show_bboxes_in_frame()
         self._set_contrast_limits(self.contrast_range_slider.value())
+    
+    def _load_image(self, frame_num):
+        self.img = io.imread(os.path.join(self.img_dir, self.filenames[frame_num]))
+
+        max_val = np.max(self.img)
+        max_val_bin = bin(max_val)[2:]
+        self.max_val_bin_len = len(max_val_bin)
+        
 
     def _load_images(self):
         # print(f'Adding {len(self.filenames)} images to viewer')
@@ -292,12 +304,12 @@ class FrameReader(QWidget):
             self.extract_data_to_draw()
     
     def _decrease_frame(self, event):
-        if self.frame_num > 0:
-            self.frame_slider.setValue(self.frame_num - 1)
+        # if self.frame_num > 0:
+        self.frame_slider.setValue(self.frame_num - 1)
     
     def _increase_frame(self, event):
-        if self.frame_num < len(self.filenames) - 1:
-            self.frame_slider.setValue(self.frame_num + 1)
+        # if self.frame_num < len(self.filenames) - 1:
+        self.frame_slider.setValue(self.frame_num + 1)
     
     def get_shapes_layer_name(self):
         if self.shapes_layer is None:
@@ -395,4 +407,3 @@ class FrameReaderWithIDs(FrameReader):
                            }
                 self.viz.manager.add_new_tracklet(new_row)
                 self._change_id_on_dialog(event=None)
-    
