@@ -142,11 +142,12 @@ class FrameReader(QWidget):
     
     def _load_image(self, frame_num):
         self.img = io.imread(os.path.join(self.img_dir, self.filenames[frame_num]))
+        self.img_width = self.img.shape[1]
+        self.img_height = self.img.shape[0]
 
         max_val = np.max(self.img)
         max_val_bin = bin(max_val)[2:]
         self.max_val_bin_len = len(max_val_bin)
-        
 
     def _load_images(self):
         # print(f'Adding {len(self.filenames)} images to viewer')
@@ -265,8 +266,8 @@ class FrameReader(QWidget):
                            'filename': self.filenames[self.frame_num], 
                            'score': 1,
                            'class': 'spine', 
-                           'width': 512, 
-                           'height': 512,
+                           'width': self.img_width,
+                           'height': self.img_height,
                            }
                 self.viz.manager.add_new_tracklet(new_row)
                 if not self.show_bboxes_checkbox.isChecked():
@@ -402,8 +403,8 @@ class FrameReaderWithIDs(FrameReader):
                            'filename': self.filenames[self.frame_num], 
                            'score': 1,
                            'class': 'spine', 
-                           'width': 512, 
-                           'height': 512,
+                           'width': self.img_width,
+                           'height': self.img_height,
                            }
                 self.viz.manager.add_new_tracklet(new_row)
                 self._change_id_on_dialog(event=None)
