@@ -2,9 +2,17 @@ import os
 import numpy as np
 import pandas as pd
 
+from qtpy.QtCore import Qt
+
 from qtpy.QtWidgets import (
-    QMessageBox
+    QMessageBox,
+    QDialog,
+    QLineEdit,
+    QLabel,
+    QVBoxLayout,
 )
+
+from napari_spine_tracker.refinement_utils.name_pattern_loader import NamePatternLoader
 
 class TrackletManager:
     def __init__(self,
@@ -15,9 +23,20 @@ class TrackletManager:
         self.data = None
         self.unq_filenames = None
         self.n_frames = None
+        self.name_pattern = None
     
     def _load_unq_filenames(self):
-        self.unq_filenames = np.unique([os.path.basename(f) for f in self.data['filename'].values])
+        if self.data.empty:
+            if self.name_pattern is None:
+                print('Data is empty')
+                # ask user to enter the name pattern of images to load
+                dialog = NamePatternLoader(self, 
+                                        self.root_widget)
+                dialog.exec_()
+                
+            self.unq_filenames = [self.name_pattern]
+        else:
+            self.unq_filenames = np.unique([os.path.basename(f) for f in self.data['filename'].values])
     
     def _load_tracklets(self):
         self._load_unq_filenames()
@@ -26,6 +45,7 @@ class TrackletManager:
     def load_tracklets_from_csv(self, datafile):
         self.filepath = datafile
         self.data = pd.read_csv(datafile)
+
         if 'layer' in self.data.columns:
             self.data.drop(['layer'], axis=1, inplace=True)
         if not 'id' in self.data.columns:

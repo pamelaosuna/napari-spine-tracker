@@ -7,7 +7,8 @@ from qtpy.QtWidgets import (
     QSplitter, 
     QHBoxLayout,
     QSplitter,
-    QCheckBox
+    QCheckBox,
+    QMessageBox
 )
 
 from napari_spine_tracker.tabs.multi_view  import  QtViewerWrap
@@ -33,9 +34,16 @@ class MultiViewer:
         
         self._extract_filenames_by_tp(filter_t1, filter_t2)
         data = self.manager.get_data()
-        self.next_new_id = np.max(data['id'].values) + 1
+        if len(data) == 0:
+            self.next_new_id = 0
+        else:
+            self.next_new_id = np.max(data['id'].values) + 1
 
         if len(self.all_filenames) == 0:
+            dialog = QMessageBox()
+            dialog.setWindowTitle("Error")
+            dialog.setText("The file is empty")
+            dialog.exec_()
             print("No images found in the selected folder")
             return
         else:
@@ -43,7 +51,7 @@ class MultiViewer:
         
         self._prepare_visualizer()
         self._create_initial_widgets()
-
+        
     def _create_initial_widgets(self):
         save_btn = QPushButton("Save")
         save_btn.clicked.connect(self._save)
@@ -104,7 +112,7 @@ class MultiViewer:
         h_layout.addStretch(1)
         self.root_widget.layout.addLayout(h_layout)
         self.root_widget.layout.addWidget(toolbar_splitter)
-    
+
     def _extract_filenames_by_tp(self, filter_t1, filter_t2):
         all_filenames = []
         for sn in self.stack_names:
@@ -157,7 +165,10 @@ class SingleViewer(MultiViewer):
         self._extract_filenames_by_tp()
         data = self.manager.get_data()
         if not self.detection_ref:
-            self.next_new_id = np.max(data['id'].values) + 1 # here
+            if len(data) == 0:
+                self.next_new_id = 0
+            else:
+                self.next_new_id = np.max(data['id'].values) + 1 # here
 
         if len(self.all_filenames) == 0:
             print("No images found in the selected folder")
@@ -217,7 +228,7 @@ class SingleViewer(MultiViewer):
         h_layout.addStretch(1)
         self.root_widget.layout.addLayout(h_layout)
         self.root_widget.layout.addWidget(toolbar_splitter)
-    
+
     def _extract_filenames_by_tp(self):
         all_filenames = []
         for sn in self.stack_names:
