@@ -77,8 +77,8 @@ class MultiViewer:
         self.viewer_model2 = ViewerModel(title="model2")
         self.qt_viewer1 = QtViewerWrap(self.root_widget.viewer, self.viewer_model1)
         self.qt_viewer2 = QtViewerWrap(self.root_widget.viewer, self.viewer_model2)
-        self.frame_reader1 = FrameReader(self, self.viewer_model1, self.img_dir, self.filenames_t1, 'tp1')
-        self.frame_reader2 = FrameReader(self, self.viewer_model2, self.img_dir, self.filenames_t2, 'tp2')
+        self.frame_reader1 = FrameReaderWithIDs(self, self.viewer_model1, self.img_dir, self.filenames_t1, 'tp1')
+        self.frame_reader2 = FrameReaderWithIDs(self, self.viewer_model2, self.img_dir, self.filenames_t2, 'tp2')
 
         self.frame_readers = [self.frame_reader1, self.frame_reader2]
         

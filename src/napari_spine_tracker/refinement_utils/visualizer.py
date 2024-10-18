@@ -344,7 +344,7 @@ class FrameReaderWithIDs(FrameReader):
     def _change_id_on_dialog(self, event):
         if not self.show_bboxes_checkbox.isChecked():
             return
-        if not 'nan' in self.shapes_layer.features['id'].values:
+        if -1 not in self.shapes_layer.features['id'].values:
             self._update_coords()
         self.id_changer = IdChanger(self.viz, 
                                      self.viz.root_widget, 
@@ -392,14 +392,14 @@ class FrameReaderWithIDs(FrameReader):
             if dragged:
                 self.shapes_layer.mode = Mode.SELECT
                 self.shapes_layer.selected_data = [len(self.shapes_layer.data) - 1]
-                self.shapes_layer.features['id'][len(self.shapes_layer.data) - 1] = 'nan'
+                self.shapes_layer.features['id'][len(self.shapes_layer.data) - 1] = -1
                 ymin, xmin = np.array(self.shapes_layer.data[-1]).min(axis=0)
                 ymax, xmax = np.array(self.shapes_layer.data[-1]).max(axis=0)
                 new_row = {'xmin': xmin,
                            'ymin': ymin, 
                            'xmax': xmax, 
                            'ymax': ymax, 
-                           'id': 'nan',
+                           'id': -1,
                            'filename': self.filenames[self.frame_num], 
                            'score': 1,
                            'class': 'spine', 
