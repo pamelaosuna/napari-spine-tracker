@@ -17,12 +17,8 @@ from superqt import QRangeSlider
 from napari.utils.action_manager import action_manager
 from napari_spine_tracker.refinement_utils.id_changer import IdChanger
 
-import matplotlib.pyplot as plt
-
-# use cmap from matplotlib
-cmap = plt.cm.get_cmap('tab20')
-# convert to rbg
-COLORS = [cmap(i)[:3] for i in range(20)]
+# TODO: modify to reproduce colors from tab20 in matplotlib
+COLORS = [(i/20, (i*7)%20/20, (i*13)%20/20) for i in range(20)]
 
 class FrameReader(QWidget):
     """
@@ -42,67 +38,63 @@ class FrameReader(QWidget):
         self.filenames = filenames
         self.text_params = None
         self.img = None
-
-        # self._load_image()
-        self._prepare_reader()
-
-        shortcuts_to_unbind= ['napari:activate_add_line_mode',
-                                'napari:increment_dims_right',
-                                'napari:increment_dims_left',
-                                'napari:delete_selected_points',
-                                'napari:activate_add_rectangle_mode',
-                                'napari:activate_add_ellipse_mode',
-                                'napari:activate_add_path_mode',
-                                'napari:activate_add_polygon_mode',
-                                'napari:delete_selected_shapes',
-                                'napari:activate_add_path_mode',
-                                'napari:activate_labels_picker_mode',
-                                'napari:activate_add_line_mode',
-                                # 'napari:activate_points_select_mode',
-                                # 'napari:activate_select_mode',
-        ]
-        for s in shortcuts_to_unbind:
-            action_manager.unbind_shortcut(s)
-
-        # key bindings
-        self.viewer_model.bind_key('Backspace', self._delete_shape)
-        self.viewer_model.bind_key('Delete', self._delete_shape)
-        self.viewer_model.bind_key('S', self._change_selection_mode_status)
-        self.viewer_model.bind_key('Escape', self._cancel_action)
-
-        @self.viewer_model.bind_key('Left', overwrite=True)
-        def _decrease_frame(event):
-            self._decrease_frame(event)
-        
-        @self.viewer_model.bind_key('Right', overwrite=True)
-        def _increase_frame(event):
-            self._increase_frame(event)
-
-        @self.viewer_model.bind_key('R', overwrite=True)
-        def _add_bbox(event):
-            self._add_bbox(event)
-
-        # bbox data
-        self.extract_data_to_draw()
         self.shapes_layer = None
+        self._old_frame = None
+        self.frame_num = 0
+
+        # Cache frequently used values
+        self._total_frames = len(self.filenames)
+
+        self._prepare_reader()
+        self._setup_shortcuts()
+        self.extract_data_to_draw()
+    
+    def _setup_shortcuts(self):
+        """
+        Unbinds default shortcuts that interfere with the custom functionality
+        and binds new shortcuts for custom actions.
+        """
+        shortcuts_to_unbind = [
+            'napari:activate_add_line_mode', 'napari:increment_dims_right',
+            'napari:increment_dims_left', 'napari:delete_selected_points',
+            'napari:activate_add_rectangle_mode', 'napari:activate_add_ellipse_mode',
+            'napari:activate_add_path_mode', 'napari:activate_add_polygon_mode',
+            'napari:delete_selected_shapes', 'napari:activate_labels_picker_mode'
+        ]
+        for shortcut in shortcuts_to_unbind:
+            action_manager.unbind_shortcut(shortcut)
+
+        # Bind keys
+        key_bindings = {
+            'Backspace': self._delete_shape,
+            'Delete': self._delete_shape,
+            'S': self._change_selection_mode_status,
+            'Escape': self._cancel_action,
+            'Left': self._decrease_frame,
+            'Right': self._increase_frame,
+            'R': self._add_bbox
+        }
+        
+        for key, method in key_bindings.items():
+            if key in ['Left', 'Right', 'R']:
+                self.viewer_model.bind_key(key, method, overwrite=True)
+            else:
+                self.viewer_model.bind_key(key, method)        
 
     def _prepare_reader(self):
-        init_frame_val = 0
-
-        self._old_frame = None
-        self.frame_num = init_frame_val
-
-        # self._load_images()
+        """
+        Intialize UI components.
+        """
         self._load_image(self.frame_num)
         self.viewer_model.add_image(self.img, 
                                     name=self.filenames[self.frame_num])
 
         self.frame_slider = QSlider(Qt.Horizontal)
-        self.frame_slider.setRange(0, len(self.filenames)-1)
-        self.frame_slider.setValue(init_frame_val)
+        self.frame_slider.setRange(0, self._total_frames-1)
+        self.frame_slider.setValue(self.frame_num)
         self.frame_slider.valueChanged.connect(self.set_frame)
 
-        self.frame_text = QLabel(f'Frame number: {self.frame_num+1} | Total frames: {len(self.filenames)}')
+        self.frame_text = QLabel(f'Frame number: {self.frame_num+1} | Total frames: {self._total_frames}')
         self.frame_text.setAlignment(Qt.AlignCenter)
         # self.fname_text = QLabel(self.filenames[self.frame_num])
         # self.fname_text.setAlignment(Qt.AlignLeft)
@@ -331,7 +323,7 @@ class FrameReaderWithIDs(FrameReader):
     
     def __init__(self, viz, viewer_model: ViewerModel, img_dir: str, filenames: list, tp_name: str):
         super().__init__(viz, viewer_model, img_dir, filenames, tp_name)
-        self.viewer_model.bind_key('i', self._change_id_on_dialog)
+        self.viewer_model.bind_key('i', self._change_id_on_dialog, overwrite=True)
         self.id_changer = None
         self.text_params =   {
                 'string': 'id',
