@@ -131,7 +131,7 @@ class FrameReader(QWidget):
         self._load_image(frame)
         self.viewer_model.add_image(self.img, name=self.filenames[frame])
         self.frame_slider.setValue(frame)
-        self.frame_text.setText(f'Frame number: {frame+1} | Total frames: {len(self.filenames)}')
+        self.frame_text.setText(f'Frame number: {frame+1} | Total frames: {len(self.filenames)}\n {os.path.basename(self.filenames[frame])}')
         self.frame_num = frame
         # use drawn coordinates to update data in case user has changed them
         # self._update_coords()

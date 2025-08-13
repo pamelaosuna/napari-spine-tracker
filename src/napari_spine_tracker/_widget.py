@@ -97,9 +97,11 @@ class TrackingCurationWidget(QWidget):
         new_project.show()
 
     def set_default_dirs(self):
-        self.csv_dir_default = os.path.join(os.getcwd(), '..', '..', 'Documents/spines/data/data_train_test_val/annotations_altugsdata/union_curated/') # 'Documents/spines/data/bens_data/results/lr_0.001_warmup_None_momentum_0.6_L2_None_union/time_tracking') #'eval_ttrack') #
-        self.img_dir_default = os.path.join(os.getcwd(), '..',  '..', 'Documents/spines/data/data_train_test_val/images_altugsdata/') # , 'subs') #, "..", "benzo_pipeline", "A1_preprocessed", "8bit", "subs") # 'Documents', 'spines', 'data', 'bens_data', 'processed', 'img_512')
-        self.filepath_default = os.path.join(self.csv_dir_default, 'train.csv') # "aidv853_date220321_stack0_sub12.csv") # 'date040822_stack1_sub11_timetracked.csv') 
+        # self.csv_dir_default = os.path.join(os.getcwd(), '..', 'napari-test_depthtrack') #'..', 'Downloads/') #'Documents/spines/data/data_train_test_val/annotations_altugsdata/union_curated/') # 'Documents/spines/data/bens_data/results/lr_0.001_warmup_None_momentum_0.6_L2_None_union/time_tracking') #'eval_ttrack') #
+        self.csv_dir_default = '/Volumes/ExtremeSSD/spines/data/altugs_data/7_time-tracked-sub-4t_defdetr_siamese_twice_maxSliceDist=2_curated'
+        # self.img_dir_default = os.path.join(os.getcwd(), '..', 'napari-test_depthtrack', 'raw_images') #  '..', 'Downloads/') #'Documents/spines/data/data_train_test_val/images_altugsdata/') # , 'subs') #, "..", "benzo_pipeline", "A1_preprocessed", "8bit", "subs") # 'Documents', 'spines', 'data', 'bens_data', 'processed', 'img_512')
+        self.img_dir_default = '/Volumes/ExtremeSSD/spines/data/altugs_data/3-A_intra-registered-sub/v890'
+        self.filepath_default = os.path.join(self.csv_dir_default, 'valid.csv') # "aidv853_date220321_stack0_sub12.csv") # 'date040822_stack1_sub11_timetracked.csv') 
         
     def _update_loaded_state(self, loaded, filepath, img_dir):
         # print("Updating project state")
