@@ -48,6 +48,7 @@ class FrameReader(QWidget):
 
         # Cache frequently used values
         self._total_frames = len(self.filenames)
+        self._image_cache = {} # Cache for image dimensions and bit length
 
         self._prepare_reader()
         self._setup_shortcuts()
@@ -119,42 +120,60 @@ class FrameReader(QWidget):
         self.setLayout(layout)
 
     def set_frame(self, frame):
-        if frame == self.frame_num: # early return if same frame
+        if frame == self.frame_num:
             return
         
         self._old_frame = self.frame_num
 
-        # Remove old layer
+        # Only update coordinates if shapes layer exists and has been modified
+        if self.shapes_layer is not None:
+            self._update_coords()
+            self.viewer_model.layers.remove(self.shapes_layer)
+            self.shapes_layer = None
+
+        # Remove old image layer
         if self.filenames[self.frame_num] in self.viewer_model.layers:
             self.viewer_model.layers.remove(self.filenames[self.frame_num])
 
-        # TODO: before updating data, check that no id is repeated, and if so, ask the user to change it
+        # Load new image
         self._load_image(frame)
         self.viewer_model.add_image(self.img, name=self.filenames[frame])
 
-        # Update UI elements
+        # Update UI
         self.frame_slider.setValue(frame)
         filename_display = os.path.basename(self.filenames[frame])
         self.frame_text.setText(
-            f'Frame number: {frame+1} | Total frames: {len(self.filenames)}\n {filename_display}'
+            f'Frame number: {frame+1} | Total frames: {self._total_frames}\n {filename_display}'
         )
         self.frame_num = frame
 
-        # use drawn coordinates to update data in case user has changed them
-
-        self.remove_bboxes()
+        # Extract data and show bboxes in one go
         self.extract_data_to_draw()
-        self.show_bboxes_in_frame()
+        if self.show_bboxes_checkbox.isChecked():
+            self.show_bboxes_in_frame()
+        
         self._set_contrast_limits(self.contrast_range_slider.value())
     
     def _load_image(self, frame_num):
         filepath = os.path.join(self.img_dir, self.filenames[frame_num])
         self.img = io.imread(filepath)
-        self.img_height, self.img_width = self.img.shape[:2]
 
-        max_val = self.img.max()
-        max_val_bin = bin(max_val)[2:]
-        self.max_val_bin_len = len(max_val_bin)  # Number of bits required to represent max_val in binary
+        # Cache image properties to avoid recalculations
+        if frame_num not in self._image_cache:
+            self.img_height, self.img_width = self.img.shape[:2]
+            max_val = self.img.max()
+            max_val_bin = bin(max_val)[2:]
+            self.max_val_bin_len = len(max_val_bin)
+            self._image_cache[frame_num] = {
+                'height': self.img_height,
+                'width': self.img_width,
+                'max_val_bin_len': self.max_val_bin_len
+            }
+        else:
+            cached = self._image_cache[frame_num]
+            self.img_height = cached['height']
+            self.img_width = cached['width']
+            self.max_val_bin_len = cached['max_val_bin_len'] # Number of bits required to represent max_val in binary
 
     def _load_images(self):
         # print(f'Adding {len(self.filenames)} images to viewer')
@@ -368,6 +387,8 @@ class FrameReaderWithIDs(FrameReader):
                 'anchor': 'upper_left',
                 'translation': [-1, 1],
                 }
+        self._data_cache = None # TODO
+        self._last_data_update = None # TODO
 
     def _change_id_on_dialog(self, event):
         if not self.show_bboxes_checkbox.isChecked():
@@ -459,3 +480,5 @@ class FrameReaderWithIDs(FrameReader):
 
                 # Open ID changer dialog
                 self._change_id_on_dialog(event=None)
+
+                # TODO: now we don't get an error when the ID from a new box already exists in this frame, and we should 

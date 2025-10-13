@@ -70,7 +70,7 @@ class MultiViewer:
                 h_layout.addSpacing(10)
 
         h_layout.addStretch()
-        self.root_widget.layout.addLayout(h_layout)
+        self.root_widget.main_layout.addLayout(h_layout)
 
     def _prepare_visualizer(self):
         self.viewer_model1 = ViewerModel(title="model1")
@@ -102,16 +102,16 @@ class MultiViewer:
         self.selection_mode.stateChanged.connect(self._toggle_selection_mode)
         self.selection_mode.setChecked(False)
 
-        self.root_widget.layout.addWidget(viewer_splitter)
-        self.root_widget.layout.setSpacing(0)
+        self.root_widget.main_layout.addWidget(viewer_splitter)
+        self.root_widget.main_layout.setSpacing(0)
 
         h_layout = QHBoxLayout()
         h_layout.addStretch(1)
         for w in [self.sync_checkbox, self.selection_mode]:
             h_layout.addWidget(w, alignment=Qt.AlignCenter)
         h_layout.addStretch(1)
-        self.root_widget.layout.addLayout(h_layout)
-        self.root_widget.layout.addWidget(toolbar_splitter)
+        self.root_widget.main_layout.addLayout(h_layout)
+        self.root_widget.main_layout.addWidget(toolbar_splitter)
 
     def _extract_filenames_by_tp(self, filter_t1, filter_t2):
         all_filenames = []
@@ -218,16 +218,16 @@ class SingleViewer(MultiViewer):
         self.selection_mode.stateChanged.connect(self._toggle_selection_mode)
         self.selection_mode.setChecked(False)
 
-        self.root_widget.layout.addWidget(viewer_splitter)
-        self.root_widget.layout.setSpacing(0)
+        self.root_widget.main_layout.addWidget(viewer_splitter)
+        self.root_widget.main_layout.setSpacing(0)
 
         h_layout = QHBoxLayout()
         h_layout.addStretch(1)
         for w in [self.selection_mode]: # self.sync_checkbox, 
             h_layout.addWidget(w, alignment=Qt.AlignCenter)
         h_layout.addStretch(1)
-        self.root_widget.layout.addLayout(h_layout)
-        self.root_widget.layout.addWidget(toolbar_splitter)
+        self.root_widget.main_layout.addLayout(h_layout)
+        self.root_widget.main_layout.addWidget(toolbar_splitter)
 
     def _extract_filenames_by_tp(self):
         all_filenames = []

@@ -6,122 +6,328 @@ see: https://napari.org/stable/plugins/guides.html?#widgets
 
 Replace code below according to your needs.
 """
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
+import logging
+from pathlib import Path
 
-from magicgui import magic_factory
-from qtpy.QtWidgets import QHBoxLayout, QPushButton, QWidget, QVBoxLayout
-from qtpy.QtCore import Qt
+from qtpy.QtWidgets import (
+    QHBoxLayout, QPushButton, QWidget, QVBoxLayout,
+    QFrame, QMessageBox, QLabel
+)
+from qtpy.QtCore import Qt, QSettings
+from qtpy.QtGui import QFont, QPalette
 
 if TYPE_CHECKING:
     import napari
 
-from napari_spine_tracker.tabs import *
+from napari_spine_tracker.tabs import (
+    OpenProject, NewProject, RefineTracking
+)
 import napari
 import os
 
-class ExampleQWidget(QWidget):
-    # your QWidget.__init__ can optionally request the napari viewer instance
-    # in one of two ways:
-    # 1. use a parameter called `napari_viewer`, as done here
-    # 2. use a type annotation of 'napari.viewer.Viewer' for any parameter
-    def __init__(self, napari_viewer):
-        super().__init__()
-        self.viewer = napari_viewer
-
-        btn = QPushButton("Click me!")
-        btn.clicked.connect(self._on_click)
-
-        self.setLayout(QHBoxLayout())
-        self.layout().addWidget(btn)
-
-    def _on_click(self):
-        print("napari has", len(self.viewer.layers), "layers")
-
-@magic_factory
-def example_magic_widget(img_layer: "napari.layers.Image"):
-    print(f"you have selected {img_layer}")
-
-# Uses the `autogenerate: true` flag in the plugin manifest
-# to indicate it should be wrapped as a magicgui to autogenerate
-# a widget.
-def example_function_widget(img_layer: "napari.layers.Image"):
-    print(f"you have selected {img_layer}")
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class TrackingCurationWidget(QWidget):
-    def __init__(self, napari_viewer):
+    """
+    Main widget for the Napari Spine Tracking Curation plugin.
+
+    This widget provides an interface for user to manage spine tracking 
+    projects, including the creation of new projects, opening existing ones,
+    and performing detection, depth-tracking and time-tracking refinement.
+    """
+
+    def __init__(self, napari_viewer: "napari.Viewer"):
         super().__init__()
         self.viewer = napari_viewer
 
-        # hide panel layer controls
-        # self.viewer.window._qt_viewer.dockLayerControls.toggleViewAction().trigger()
-        # self.viewer.window._qt_viewer.dockLayerList.toggleViewAction().trigger()
+        # Project state
+        self._project_loaded = False
+        self._setup_default_directories()
 
-        self.set_default_dirs()
-        self.data_loaded = False
+        # UI Settings
+        self._settings = QSettings("NapariSpineTracker", "Settings")
 
+        # Create the initial interface
         self._create_initial_widgets()
 
     def _create_initial_widgets(self):
-        btn_new_project = QPushButton("New Project")
-        btn_open_project = QPushButton("Open Project")
-        btn_help = QPushButton("Help")
+        """
+        Create the initial project selection interface.
+        """
+        self.setMinimumSize(300, 400)
+        self.setWindowTitle("Spine Tracking Curation")
 
-        btn_open_project.clicked.connect(self._open_project)
-        btn_help.clicked.connect(self._help)
-        btn_new_project.clicked.connect(self._new_project)
+        # Main layout
+        self.main_layout = QVBoxLayout()
+        self.main_layout.setSpacing(20)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
 
-        self.layout = QVBoxLayout()
-        for btn in [btn_new_project, btn_open_project, btn_help]:
-            btn.setFixedHeight(50)
-            btn.setFixedWidth(200)
-            btn.setStyleSheet("font-size: 20px;")
-            self.layout.addWidget(btn, alignment=Qt.AlignCenter)
+        # Header section
+        self._create_header()
+
+        # Create project buttons
+        self._create_project_buttons()
+
+        # Status section
+        self._create_status_section()
         
-        self.setLayout(self.layout)
-        
-    def _open_project(self):
-        self.parent().setFloating(True)
-        self.parent().showMaximized()
-        # print("Open Project")
-        open_project = OpenProject(self)
-        open_project.show()
+        self.setLayout(self.main_layout)
     
-    def _help(self):
+    def _maximize_window(self):
+        """Maximize the parent window for better workspace."""
+        try:
+            if self.parent():
+                self.parent().setFloating(True)
+                self.parent().showMaximized()
+        except Exception as e:
+            logger.warning(f"Could not maximize window: {e}")
+
+    def _create_header(self):
+        """Create the header section with title and description."""
+        header_frame = QFrame()
+        header_layout = QVBoxLayout()
+        
+        # Title
+        title_label = QLabel("Napari Spine Tracker")
+        title_font = QFont()
+        title_font.setPointSize(20)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 10px;")
+        
+        # Description
+        desc_label = QLabel("Manage and refine spine tracking data")
+        desc_label.setAlignment(Qt.AlignCenter)
+        desc_label.setStyleSheet("color: #7f8c8d; font-size: 12px;")
+        desc_label.setWordWrap(True)
+        
+        header_layout.addWidget(title_label)
+        header_layout.addWidget(desc_label)
+        header_frame.setLayout(header_layout)
+        
+        self.main_layout.addWidget(header_frame)
+
+    def _create_status_section(self):
+        """Create the status information section."""
+        self.status_label = QLabel("No project loaded")
+        self.status_label.setAlignment(Qt.AlignCenter)
+        self._update_status_display()
+        
+        self.main_layout.addWidget(self.status_label)
+        self.main_layout.addStretch(1)
+
+    def _create_project_buttons(self):
+        """
+        Create the main project management buttons.
+        """
+        button_frame = QFrame()
+        button_layout = QVBoxLayout()
+        button_layout.setSpacing(15)
+        
+        # Create project buttons
+        self.btn_new_project = self._create_styled_button(
+            "📁 New Project", 
+            "Create a new spine tracking project",
+            self._handle_new_project
+        )
+        
+        self.btn_open_project = self._create_styled_button(
+            "📂 Open Project", 
+            "Load an existing spine tracking project",
+            self._handle_open_project
+        )
+        
+        self.btn_help = self._create_styled_button(
+            "❓ Help", 
+            "View documentation and shortcuts",
+            self._handle_help
+        )
+        
+        # Add buttons to layout
+        for btn in [self.btn_new_project, self.btn_open_project, self.btn_help]:
+            button_layout.addWidget(btn, alignment=Qt.AlignCenter)
+        
+        button_frame.setLayout(button_layout)
+        self.main_layout.addWidget(button_frame)
+
+    def _create_styled_button(self, text: str, tooltip: str, callback) -> QPushButton:
+        """Create a consistently styled button."""
+        btn = QPushButton(text)
+        btn.setFixedHeight(60)
+        btn.setFixedWidth(280)
+        btn.setToolTip(tooltip)
+        btn.clicked.connect(callback)
+        
+        # Modern button styling
+        btn.setStyleSheet("""
+            QPushButton {
+                font-size: 16px;
+                font-weight: bold;
+                border: 2px solid #3498db;
+                border-radius: 8px;
+                background-color: #3498db;
+                color: white;
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+                border-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #21618c;
+                border-color: #21618c;
+            }
+            QPushButton:disabled {
+                background-color: #bdc3c7;
+                border-color: #bdc3c7;
+                color: #7f8c8d;
+            }
+        """)
+        
+        return btn
+        
+    def _handle_open_project(self):
+        """
+        Handle opening existing project.
+        """
+        logger.info("Opening existing project")
+        try:
+            self._maximize_window()
+            open_project_dialog = OpenProject(self)
+            open_project_dialog.exec_()
+        except Exception as e:
+            logger.error(f"Error opening project: {e}")
+            self._show_error_message("Failed to open project", str(e))
+
+    def _handle_help(self):
         print("Help")
         
-    def _new_project(self):
-        print("New Project")
-        self.parent().setFloating(True)
-        self.parent().showMaximized()
-        new_project = NewProject(self)
-        new_project.show()
+    def _handle_new_project(self):
+        """Handle new project creation."""
+        logger.info("Creating new project")
+        try:
+            self._maximize_window()
+            new_project_dialog = NewProject(self)
+            new_project_dialog.exec_()
+        except Exception as e:
+            logger.error(f"Error creating new project: {e}")
+            self._show_error_message("Error creating new project", str(e))
 
-    def set_default_dirs(self):
+    def _setup_default_directories(self):
+        home = Path.home()
+
+        # TODO: Use more robust default paths
         # self.csv_dir_default = os.path.join(os.getcwd(), '..', 'napari-test_depthtrack') #'..', 'Downloads/') #'Documents/spines/data/data_train_test_val/annotations_altugsdata/union_curated/') # 'Documents/spines/data/bens_data/results/lr_0.001_warmup_None_momentum_0.6_L2_None_union/time_tracking') #'eval_ttrack') #
-        self.csv_dir_default = '/Volumes/ExtremeSSD/spines/data/altugs_data/7_time-tracked-sub-4t_defdetr_siamese_twice_maxSliceDist=2_curated'
+        # self.csv_dir_default = '/Volumes/ExtremeSSD/spines/data/altugs_data/7_time-tracked-sub-4t_defdetr_siamese_twice_maxSliceDist=2_curated'
+        self.csv_dir_default = "/Volumes/ExtremeSSD/spines/data/altugs_data/9_morph_4t_sigma_0.3_curated/3D+oob-labels+branchID_blind/grouped_by_fov_for_napari/"
         # self.img_dir_default = os.path.join(os.getcwd(), '..', 'napari-test_depthtrack', 'raw_images') #  '..', 'Downloads/') #'Documents/spines/data/data_train_test_val/images_altugsdata/') # , 'subs') #, "..", "benzo_pipeline", "A1_preprocessed", "8bit", "subs") # 'Documents', 'spines', 'data', 'bens_data', 'processed', 'img_512')
-        self.img_dir_default = '/Volumes/ExtremeSSD/spines/data/altugs_data/3-A_intra-registered-sub/v890'
-        self.filepath_default = os.path.join(self.csv_dir_default, 'valid.csv') # "aidv853_date220321_stack0_sub12.csv") # 'date040822_stack1_sub11_timetracked.csv') 
+        self.img_dir_default = '/Volumes/ExtremeSSD/spines/data/altugs_data/9_morph_4t_sigma_0.3_curated/3D+oob-labels+branchID_blind/images'
+        # self.img_dir_default = "/Volumes/ExtremeSSD/spines/data/Diazepam_STED/1_raw/png"
+        self.filepath_default = os.path.join(self.csv_dir_default, 'aid2277_Series001.csv') # "aidv853_date220321_stack0_sub12.csv") # 'date040822_stack1_sub11_timetracked.csv')
+
+        # Create directories if they don't exist # TODO
+
+        logger.info(f"Default CSV directory: {self.csv_dir_default}")
+        logger.info(f"Default image directory: {self.img_dir_default}")
         
-    def _update_loaded_state(self, loaded, filepath, img_dir):
-        # print("Updating project state")
-        self.data_loaded = loaded
-        self.filepath = filepath
-        self.img_dir = img_dir
-        self.csv_dir = os.path.dirname(self.filepath)
-        self.filename = os.path.basename(self.filepath)
+    def _update_loaded_state(self, loaded: bool, filepath: str, img_dir: str):
+        logger.info(f"Updating loaded state: loaded: {loaded}")
+
+        self._project_loaded = loaded
 
         if loaded:
-            self._create_curation_widgets()
-    
-    def _create_curation_widgets(self):
-        # print("Creating curation widgets")
-        # remove btn_new_project, btn_open_project, btn_help
-        for _ in range(3):
-            self.layout.removeWidget(self.layout.itemAt(0).widget())
+            # Store project info
+            self.filepath = filepath
+            self.img_dir = img_dir
+            self.csv_dir = os.path.dirname(self.filepath)
+            self.filename = os.path.basename(self.filepath)
 
-        self.refine_timetracking = RefineTracking(self)
+            # Update UI
+            self._update_status_display()
+
+            self._create_tracking_interface()
+    
+    def _update_status_display(self):
+        if self._project_loaded:
+            status_text = f"✅ Project loaded: {self.filename}"
+
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    font-size: 12px;
+                    color: #27ae60;
+                    padding: 15px;
+                    background-color: #d5f4e6;
+                    border-radius: 6px;
+                    border: 1px solid #27ae60;
+                }
+            """)
+        else:
+            status_text = "No project loaded"
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    font-size: 12px;
+                    color: #7f8c8d;
+                    padding: 15px;
+                    background-color: #ecf0f1;
+                    border-radius: 6px;
+                    border: 1px solid #bdc3c7;
+                }
+            """)
+        
+        self.status_label.setText(status_text)
+    
+    def _clear_all_widgets(self):
+        """Remove all widgets from the main layout when switching to tracking mode."""
+        # Store items to remove (avoid modifying layout while iterating)
+        items_to_remove = []
+        
+        for i in range(self.main_layout.count()):
+            item = self.main_layout.itemAt(i)
+            if item and item.widget():
+                items_to_remove.append(item.widget())
+        
+        # Remove all identified widgets
+        for widget in items_to_remove:
+            self.main_layout.removeWidget(widget)
+            widget.deleteLater()
+        
+        logger.info(f"Cleared {len(items_to_remove)} widgets from main layout")
+    
+    def _create_tracking_interface(self):
+        try:
+            # Clear existing widgets from the layout
+            self._clear_all_widgets()
+
+            # Create the tracking refinement widget
+            self._refine_tracking_widget = RefineTracking(self)
+
+            # Insert the tracking widget between header and status
+            self.main_layout.insertWidget(1, self._refine_tracking_widget)
+
+            logger.info("Tracking interface created successfully")
+        except Exception as e:
+            logger.error(f"Error creating tracking interface: {e}")
+            self._show_error_message("Error creating tracking interface", str(e))
+    
+    def _show_error_message(self, title: str, message: str):
+        """Display an error message to the user."""
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Critical)
+        msg.setWindowTitle(title)
+        msg.setText(message)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+
+    def is_project_loaded(self) -> bool:
+        """Check if a project is currently loaded."""
+        return self._project_loaded
 
 if __name__ == '__main__':
     viewer = napari.Viewer()
+    widget = TrackingCurationWidget(viewer)
+    viewer.window.add_dock_widget(widget, name='Spine Tracking Curation')
     napari.run()
