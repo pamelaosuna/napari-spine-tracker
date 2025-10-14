@@ -218,12 +218,12 @@ class TrackingCurationWidget(QWidget):
             self._show_error_message("Error creating new project", str(e))
 
     def _setup_default_directories(self):
-        home = Path.home()
+        current_dir = os.getcwd()
 
         # TODO: Use more robust default paths
-        self.csv_dir_default = "/Volumes/ExtremeSSD/spines/data/altugs_data/9_morph_4t_sigma_0.3_curated/3D+oob-labels+branchID_blind/grouped_by_fov_for_napari/"
-        self.img_dir_default = '/Volumes/ExtremeSSD/spines/data/altugs_data/9_morph_4t_sigma_0.3_curated/3D+oob-labels+branchID_blind/images'
-        self.filepath_default = os.path.join(self.csv_dir_default, 'aid2277_Series001.csv') # "aidv853_date220321_stack0_sub12.csv") # 'date040822_stack1_sub11_timetracked.csv')
+        self.csv_dir_default = current_dir # "/Volumes/ExtremeSSD/spines/data/altugs_data/9_morph_4t_sigma_0.3_curated/3D+oob-labels+branchID_blind/grouped_by_fov_for_napari/"
+        self.img_dir_default = current_dir # '/Volumes/ExtremeSSD/spines/data/altugs_data/9_morph_4t_sigma_0.3_curated/3D+oob-labels+branchID_blind/images'
+        self.filepath_default = "" # os.path.join(self.csv_dir_default, 'aid2277_Series001.csv') # "aidv853_date220321_stack0_sub12.csv") # 'date040822_stack1_sub11_timetracked.csv')
 
         logger.info(f"Default CSV directory: {self.csv_dir_default}")
         logger.info(f"Default image directory: {self.img_dir_default}")
