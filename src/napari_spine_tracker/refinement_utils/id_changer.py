@@ -166,19 +166,26 @@ class IdChanger(QDialog):
         try:
             # Update shapes layer features
             current_features = dict(self.shapes_layer.features)
-            current_features['id'][self.idx_selected_shape] = new_id
+            current_ids = list(current_features['id'])
+            current_ids[self.idx_selected_shape] = new_id
+            current_features['id'] = current_ids
             self.shapes_layer.features = current_features
             
             # Update data manager
             fn = self.shapes_layer.name.split('bboxes_')[1]
             data = self.viz.manager.get_data()
-            idx_row = data[
-                (data['filename'].str.contains(fn)) &
-                (data['id'].astype(str) == str(self.id_to_change))
-            ].index
+
+            # Find the row(s) that match this shape
+            mask = data[
+                (data['filename'].str.contains(fn, na=False)) & \
+                (data['id'].astype(str) == str(self.id_to_change))]
+            idx_row = data[mask].index
             
             if len(idx_row) > 0:
                 self.viz.manager.change_id(idx_row, new_id)
+                logging.info(f"Updated {len(idx_row)} row(s) in data manager for ID change.")
+            else:
+                logging.warning(f"No matching row found in data manager for ID {self.id_to_change} and filename {fn}.")
             
             # Update next new ID if necessary
             if new_id >= self.viz.next_new_id:

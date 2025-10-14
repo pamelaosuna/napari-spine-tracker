@@ -1,4 +1,6 @@
 import os
+import logging
+
 import numpy as np
 import pandas as pd
 
@@ -79,14 +81,41 @@ class TrackletManager:
         dialog.exec_()
     
     def add_new_tracklet(self, row_to_add):
-        row_tracklet = pd.DataFrame(row_to_add, index = [0])
-        self.data = pd.concat([self.data, row_tracklet], ignore_index=True)
+        if isinstance(row_to_add, dict):
+            row_tracklet = pd.DataFrame([row_to_add])
+        else:
+            row_tracklet = pd.DataFrame(row_to_add, index = [0])
+        
+        # Concatenate with existing data
+        if self.data is None or self.data.empty:
+            self.data = row_tracklet
+        else:
+            self.data = pd.concat([self.data, row_tracklet], ignore_index=True)
+
+        logging.info(f"Added new tracklet with ID: {row_to_add.get('id', 'Unknown')}")
+
+        return len(self.data) - 1 # return index of the new row added
     
     def remove_tracklet(self, row_idxs):
         self.data = self.data.drop(row_idxs)
     
     def change_id(self, idx_row, new_id):
-        self.data.loc[idx_row, 'id'] = new_id
+        """
+        Change ID of tracklet.
+        """
+        if isinstance(idx_row, (list, pd.Index)) and len(idx_row) > 0:
+            # Handle multiple rows
+            self.data.loc[idx_row, 'id'] = new_id
+            print(f"Changed ID to {new_id} for {len(idx_row)} rows")
+        elif isinstance(idx_row, int) or (hasattr(idx_row, '__len__') and len(idx_row) == 1):
+            # Handle single row
+            if hasattr(idx_row, '__len__'):
+                idx_row = idx_row[0] if len(idx_row) > 0 else None
+            if idx_row is not None:
+                self.data.loc[idx_row, 'id'] = new_id
+                print(f"Changed ID to {new_id} for row {idx_row}")
+        else:
+            print(f"Warning: Could not change ID - invalid row index: {idx_row}")
     
     def update_coords(self, img_filename, shapes_layer_data, ids):
         data_img = self.data[self.data['filename'].str.contains(img_filename.split('bboxes_')[1])]

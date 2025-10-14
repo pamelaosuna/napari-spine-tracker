@@ -221,15 +221,9 @@ class TrackingCurationWidget(QWidget):
         home = Path.home()
 
         # TODO: Use more robust default paths
-        # self.csv_dir_default = os.path.join(os.getcwd(), '..', 'napari-test_depthtrack') #'..', 'Downloads/') #'Documents/spines/data/data_train_test_val/annotations_altugsdata/union_curated/') # 'Documents/spines/data/bens_data/results/lr_0.001_warmup_None_momentum_0.6_L2_None_union/time_tracking') #'eval_ttrack') #
-        # self.csv_dir_default = '/Volumes/ExtremeSSD/spines/data/altugs_data/7_time-tracked-sub-4t_defdetr_siamese_twice_maxSliceDist=2_curated'
         self.csv_dir_default = "/Volumes/ExtremeSSD/spines/data/altugs_data/9_morph_4t_sigma_0.3_curated/3D+oob-labels+branchID_blind/grouped_by_fov_for_napari/"
-        # self.img_dir_default = os.path.join(os.getcwd(), '..', 'napari-test_depthtrack', 'raw_images') #  '..', 'Downloads/') #'Documents/spines/data/data_train_test_val/images_altugsdata/') # , 'subs') #, "..", "benzo_pipeline", "A1_preprocessed", "8bit", "subs") # 'Documents', 'spines', 'data', 'bens_data', 'processed', 'img_512')
         self.img_dir_default = '/Volumes/ExtremeSSD/spines/data/altugs_data/9_morph_4t_sigma_0.3_curated/3D+oob-labels+branchID_blind/images'
-        # self.img_dir_default = "/Volumes/ExtremeSSD/spines/data/Diazepam_STED/1_raw/png"
         self.filepath_default = os.path.join(self.csv_dir_default, 'aid2277_Series001.csv') # "aidv853_date220321_stack0_sub12.csv") # 'date040822_stack1_sub11_timetracked.csv')
-
-        # Create directories if they don't exist # TODO
 
         logger.info(f"Default CSV directory: {self.csv_dir_default}")
         logger.info(f"Default image directory: {self.img_dir_default}")

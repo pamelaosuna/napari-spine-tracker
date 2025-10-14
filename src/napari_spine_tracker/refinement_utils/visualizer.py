@@ -1,4 +1,6 @@
 import os
+import logging
+
 import numpy as np
 from skimage import io
 from qtpy.QtWidgets import QVBoxLayout
@@ -9,6 +11,7 @@ from qtpy.QtWidgets import (
     QLabel,
     QCheckBox,
     QVBoxLayout,
+    QDialog,
     )
 
 from napari.layers.shapes._shapes_constants import Mode
@@ -272,25 +275,30 @@ class FrameReader(QWidget):
         
         if not self.show_bboxes_checkbox.isChecked():
             self.show_bboxes_checkbox.setChecked(True)
+
         if not self.viz.selection_mode.isChecked():
             self.viz.selection_mode.setChecked(True)
         
         # activate add rectangle mode
         self._update_coords()
         layer_name = 'bboxes_' + self.filenames[self.frame_num]
+
+        # Create shapes layer if it does not exist
         if self.shapes_layer is None:
-            self.shapes_layer = self.viewer_model.add_shapes(name=layer_name,
-                                                             shape_type='rectangle',
-                                                             features={'id':[]},
-                                                             edge_color='green',
-                                                             face_color='transparent',
-                                                             visible=True,
-                                                             text=self.text_params)
+            self.shapes_layer = self.viewer_model.add_shapes(
+                name=layer_name,
+                shape_type='rectangle',
+                features={'id':[]},
+                edge_color='green',
+                face_color='transparent',
+                visible=True,
+                text=self.text_params
+            )
+
         self.shapes_layer.mode = Mode.ADD_RECTANGLE
         
         @self.shapes_layer.mouse_drag_callbacks.append
         def click_drag(layer, event):
-            # print('mouse down')
             dragged = False
             yield
             # on move
@@ -300,29 +308,99 @@ class FrameReader(QWidget):
             # on release
             if dragged:
                 self.shapes_layer.mode = Mode.SELECT
-                self.shapes_layer.selected_data = [len(self.shapes_layer.data) - 1]
-                data = self.viz.manager.get_data()
-                self.shapes_layer.features['id'][len(self.shapes_layer.data) - 1] = data['id'].max() + 1
+                new_shape_index = len(self.shapes_layer.data) - 1
+                self.shapes_layer.selected_data = [new_shape_index]
+
+                # Get bounding box coordinates
                 ymin, xmin = np.array(self.shapes_layer.data[-1]).min(axis=0)
                 ymax, xmax = np.array(self.shapes_layer.data[-1]).max(axis=0)
+
+                # Create new row for data manager with temporary ID -1
                 new_row = {'xmin': xmin,
                            'ymin': ymin, 
                            'xmax': xmax, 
                            'ymax': ymax, 
-                           'id': data['id'].max() + 1,
+                            'id': -1, # Temporary ID
                            'filename': self.filenames[self.frame_num], 
                            'score': 1,
                            'class': 'spine', 
                            'width': self.img_width,
                            'height': self.img_height,
                            }
-                self.viz.manager.add_new_tracklet(new_row)
-                if not self.show_bboxes_checkbox.isChecked():
-                    return
-                self._update_coords()
-                self.extract_data_to_draw()
-                self.repaint_bboxes()
+                
+                # Add new tracklet to data manager
+                row_index = self.viz.manager.add_new_tracklet(new_row)
 
+                # Update shapes layer features properly
+                current_features = dict(self.shapes_layer.features)
+                current_ids = list(current_features.get('id', []))
+
+                # Ensure list is long enough
+                while len(current_ids) <= new_shape_index:
+                    current_ids['id'].append(-1)
+
+                # Set temporary ID
+                current_ids[new_shape_index] = -1
+                current_features['id'] = current_ids
+                self.shapes_layer.features = current_features
+
+                # Store the row index for the ID changer
+                self._pending_new_row_index = row_index
+
+                # Open ID changer dialog
+                self._change_id_on_dialog(event=None)
+
+    def _change_id_on_dialog(self, event):
+        if not self.show_bboxes_checkbox.isChecked():
+            return
+        
+        if self.shapes_layer is None or len(self.shapes_layer.data) == 0:
+            return
+        
+        # Update coordinates before opening dialog
+        if -1 not in self.shapes_layer.features['id']:
+            self._update_coords()
+        
+        # Create and show ID changer dialog
+        self.id_changer = IdChanger(
+            self.viz,
+            self.viz.root_widget,
+            self.viewer_model,
+            self.shapes_layer
+        )
+
+        # Connect to the id_changed signal to update visualization
+        self.id_changer.id_changed.connect(self._on_id_changed)
+
+        result = self.id_changer.exec_()
+
+        # Clean up
+        self.id_changer = None
+
+        # If dialog was cancelled and we have a pending new row, remove it
+        if result == QDialog.Rejected and hasattr(self, '_pending_new_row_index'):
+            # Remove the tracklet that was just added
+            self.viz.manager.remove_tracklet([self._pending_new_row_index])
+            # Remove the shape
+            if len(self.shapes_layer.data) > 0:
+                self.shapes_layer.data = self.shapes_layer.data[:-1]
+            delattr(self, '_pending_new_row_index')
+
+    def _on_id_changed(self, old_id, new_id):
+        """
+        Handle ID change completion.
+        """
+        logging.info(f"ID changed from {old_id} to {new_id}")
+
+        # If this was a new tracklet, update the manager
+        if hasattr(self, '_pending_new_row_index'):
+            self.viz.manager.change_id(self._pending_new_row_index, new_id)
+            delattr(self, '_pending_new_row_index')
+
+        # Update visualization after ID change
+        self.extract_data_to_draw()
+        self.repaint_bboxes()
+                                    
     def _delete_shape(self, event):
         if not self.show_bboxes_checkbox.isChecked():
             return
@@ -480,5 +558,3 @@ class FrameReaderWithIDs(FrameReader):
 
                 # Open ID changer dialog
                 self._change_id_on_dialog(event=None)
-
-                # TODO: now we don't get an error when the ID from a new box already exists in this frame, and we should 
