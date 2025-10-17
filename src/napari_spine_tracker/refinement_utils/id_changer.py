@@ -55,7 +55,7 @@ class IdChanger(QDialog):
             return False
         
         self.idx_selected_shape = list(self.shapes_layer.selected_data)[-1]
-        self.id_to_change = self.shapes_layer.features['id'].values[self.idx_selected_shape]
+        self.id_to_change = int(self.shapes_layer.features['id'].values[self.idx_selected_shape])
         return True
     
     def _setup_dialog(self):
@@ -166,7 +166,7 @@ class IdChanger(QDialog):
         try:
             # Update shapes layer features
             current_features = dict(self.shapes_layer.features)
-            current_ids = list(current_features['id'])
+            current_ids = current_features['id'].astype(int)
             current_ids[self.idx_selected_shape] = new_id
             current_features['id'] = current_ids
             self.shapes_layer.features = current_features
@@ -176,9 +176,8 @@ class IdChanger(QDialog):
             data = self.viz.manager.get_data()
 
             # Find the row(s) that match this shape
-            mask = data[
-                (data['filename'].str.contains(fn, na=False)) & \
-                (data['id'].astype(str) == str(self.id_to_change))]
+            mask = (data['filename'].str.contains(fn, na=False)) & \
+                    (data['id'].astype(str) == str(self.id_to_change))
             idx_row = data[mask].index
             
             if len(idx_row) > 0:
